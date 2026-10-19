@@ -28,22 +28,32 @@
       box-shadow: 0 24px 60px rgba(0,0,0,.45);
     }
 
+    /* ── Logo ── */
     .logo {
       text-align: center;
       margin-bottom: 28px;
     }
+    .logo img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      margin-bottom: 10px;
+      filter: drop-shadow(0 0 12px rgba(0,229,255,.35));
+    }
     .logo h1 {
-      font-size: 1.5rem;
+      font-size: 1.4rem;
       font-weight: 800;
       color: #00e5ff;
-      letter-spacing: 1px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
     }
     .logo p {
       color: #4a5880;
-      font-size: .85rem;
+      font-size: .82rem;
       margin-top: 5px;
     }
 
+    /* ── Form ── */
     .form-group {
       display: flex;
       flex-direction: column;
@@ -57,9 +67,11 @@
       color: #4a5880;
     }
     label .req { color: #00e5ff; margin-left: 2px; }
-    label .opt { color: #4a5880; font-style: italic; margin-left: 4px; text-transform: none; letter-spacing: 0; }
+    label .opt { color: #4a5880; font-style: italic; margin-left: 4px;
+                 text-transform: none; letter-spacing: 0; }
 
     input[type="text"],
+    input[type="password"],
     input[type="tel"],
     input[type="number"] {
       background: #080d1a;
@@ -75,6 +87,30 @@
     input:focus { border-color: #00e5ff; }
     input::placeholder { color: #2e3f60; }
 
+    /* ── Promo code row with show/hide ── */
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .input-wrap input {
+      padding-right: 44px;
+    }
+    .toggle-btn {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #4a5880;
+      font-size: 1.1rem;
+      padding: 4px;
+      line-height: 1;
+      transition: color .2s;
+      user-select: none;
+    }
+    .toggle-btn:hover { color: #00e5ff; }
+
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
     .disc-wrap { position: relative; }
@@ -86,11 +122,7 @@
       pointer-events: none;
     }
 
-    .divider {
-      border: none;
-      border-top: 1px solid #1a2744;
-      margin: 20px 0;
-    }
+    .divider { border: none; border-top: 1px solid #1a2744; margin: 20px 0; }
 
     .btn-generate {
       width: 100%;
@@ -117,37 +149,22 @@
       margin-bottom: 18px;
     }
 
-    /* ── Preview ── */
-    .preview {
-      margin-top: 28px;
-      text-align: center;
-    }
+    /* ── Ticket preview ── */
+    .preview { margin-top: 28px; text-align: center; }
     .preview img {
       max-width: 100%;
       border-radius: 12px;
       box-shadow: 0 12px 36px rgba(0,0,0,.4);
     }
-    .preview-meta {
-      margin-top: 12px;
-      font-size: .8rem;
-      color: #4a5880;
-    }
+    .preview-meta { margin-top: 12px; font-size: .8rem; color: #4a5880; }
     .preview-meta strong { color: #00e5ff; font-size: .95rem; }
 
     .btn-download {
-      display: block;
-      width: 100%;
-      margin-top: 14px;
-      padding: 12px;
+      display: block; width: 100%; margin-top: 14px; padding: 12px;
       background: linear-gradient(135deg, #22c55e, #16a34a);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: .95rem;
-      font-weight: 700;
-      cursor: pointer;
-      text-align: center;
-      transition: opacity .2s, transform .15s;
+      color: white; border: none; border-radius: 10px;
+      font-size: .95rem; font-weight: 700; cursor: pointer;
+      text-align: center; transition: opacity .2s, transform .15s;
     }
     .btn-download:hover { opacity: .88; transform: translateY(-1px); }
 
@@ -160,8 +177,11 @@
 <body>
 
 <div class="card">
+
+  <!-- Logo -->
   <div class="logo">
-    <h1>⚡ RAYUCODE E-TICKET</h1>
+    <img src="/static/img/rayucode-logo.png" alt="Rayucode Logo" />
+    <h1>Rayucode E-Ticket</h1>
     <p>Fill in the details below to generate your ticket</p>
   </div>
 
@@ -171,12 +191,17 @@
 
   <form action="/generate" method="POST">
 
-    <!-- Promo Code — required -->
+    <!-- Promo Code — required + show/hide toggle -->
     <div class="form-group">
       <label for="promo_code">Promo Code <span class="req">*</span></label>
-      <input type="text" id="promo_code" name="promo_code"
-             placeholder="e.g. RAYUCODE-VIP"
-             value="{{ promo_code or '' }}" required autocomplete="off" />
+      <div class="input-wrap">
+        <input type="password" id="promo_code" name="promo_code"
+               placeholder="Enter promo code…"
+               value="{{ promo_code or '' }}" required autocomplete="off" />
+        <button type="button" class="toggle-btn" id="togglePromo"
+                onclick="toggleVisibility('promo_code', 'togglePromo')"
+                title="Show / Hide">👁</button>
+      </div>
     </div>
 
     <!-- Discount — required -->
@@ -218,7 +243,24 @@
     <button type="submit" class="btn-download">⬇ Download Ticket JPG</button>
   </form>
   {% endif %}
+
 </div>
+
+<script>
+  function toggleVisibility(inputId, btnId) {
+    const input = document.getElementById(inputId);
+    const btn   = document.getElementById(btnId);
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = '🙈';
+      btn.title = 'Hide';
+    } else {
+      input.type = 'password';
+      btn.textContent = '👁';
+      btn.title = 'Show';
+    }
+  }
+</script>
 
 </body>
 </html>
