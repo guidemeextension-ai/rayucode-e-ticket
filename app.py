@@ -18,10 +18,10 @@ app = Flask(__name__)
 TEMPLATE_PATH = Path("ticket_template.jpg")
 
 X = 540
-Y = 525
-FONT_SIZE = 34
+Y = 440
+FONT_SIZE = 36
 TEXT_COLOR = "#FFFFFF"
-FONT_PATH = None
+FONT_PATH = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
 CENTER_TEXT = True
 # --------------------------------------------------
 
@@ -33,17 +33,24 @@ def find_font(font_size):
         candidates.append(Path(FONT_PATH))
 
     candidates.extend([
-        # macOS
+        # macOS (Bold first)
+        Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
+        Path("/System/Library/Fonts/Supplemental/Helvetica Bold.ttf"),
         Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
         Path("/System/Library/Fonts/Supplemental/Helvetica.ttf"),
+        Path("/Library/Fonts/Arial Bold.ttf"),
         Path("/Library/Fonts/Arial.ttf"),
         # Linux (Railway/Render servers)
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
         Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
+        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
         Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+        Path("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
         Path("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"),
         # Windows
+        Path("C:/Windows/Fonts/arialbd.ttf"),
         Path("C:/Windows/Fonts/arial.ttf"),
     ])
 
@@ -73,11 +80,8 @@ def generate_ticket(promo_code):
         text_height = bottom - top
         text_x = X - text_width // 2
 
-    # Draw a dark pill background behind the white text for visibility
+    # Draw a subtle dark pill behind the text for readability
     if CENTER_TEXT:
-        left, top, right, bottom = draw.textbbox((0, 0), promo_code, font=font)
-        text_width = right - left
-        text_height = bottom - top
         padding = 8
         overlay = Image.new("RGBA", ticket.size, (0, 0, 0, 0))
         overlay_draw = ImageDraw.Draw(overlay)
@@ -85,7 +89,7 @@ def generate_ticket(promo_code):
             [text_x - padding, Y - padding,
              text_x + text_width + padding, Y + text_height + padding],
             radius=6,
-            fill=(0, 0, 0, 100)
+            fill=(0, 0, 0, 80)
         )
         ticket = Image.alpha_composite(ticket.convert("RGBA"), overlay).convert("RGB")
         draw = ImageDraw.Draw(ticket)
