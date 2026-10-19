@@ -4,3 +4,4 @@ __pycache__/
 .flaskenv
 output/
 .dist/
+promo_records.json

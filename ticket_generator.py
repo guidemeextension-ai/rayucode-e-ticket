@@ -29,14 +29,14 @@ PROMO_CODES = [
 ]
 
 # Position in pixels, measured from the top-left corner of the image.
-# IMPORTANT: Change these example coordinates to fit your own ticket.
-X = 2634
-Y = 932
+# Centered inside the promo code box (template is 5280×2970px).
+X = 2635          # Horizontal center of the promo code box
+Y = 2480          # Vertical center of the promo code box interior (2365–2595)
 
-FONT_SIZE = 28
-TEXT_COLOR = "#0a1a2e"
+FONT_SIZE = 140   # Sized to fit the box at full 5280×2970 resolution
+TEXT_COLOR = "#FFFFFF"  # White text to show on the dark box background
 # Optional: set to a font file path, or leave None for automatic selection.
-FONT_PATH = None
+FONT_PATH = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
 
 # Optional: center the code around X instead of starting at X.
 CENTER_TEXT = True

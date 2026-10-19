@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Rayucode Ticket Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0f1e;
+      --surface:  #0d1530;
+      --card:     #111828;
+      --border:   #1e2d50;
+      --cyan:     #00e5ff;
+      --purple:   #a855f7;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --input-bg: #0a0f1e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: 1px;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      margin-left: 24px;
+      font-size: .9rem;
+      transition: color .2s;
+    }
+    .nav-links a:hover, .nav-links a.active { color: var(--text); }
+    .nav-links a.active { color: var(--cyan); }
+
+    /* ── LAYOUT ── */
+    .page { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+
+    .page-header h1 { font-size: 1.6rem; font-weight: 700; }
+    .page-header p  { color: var(--muted); margin-top: 4px; font-size: .9rem; }
+
+    /* ── STAT CARDS ── */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; margin: 28px 0; }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .stat-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem;
+      flex-shrink: 0;
+    }
+    .stat-icon.cyan   { background: rgba(0,229,255,.1); color: var(--cyan); }
+    .stat-icon.purple { background: rgba(168,85,247,.1); color: var(--purple); }
+    .stat-label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+    .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; margin-top: 4px; }
+
+    /* ── FORM CARD ── */
+    .form-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+    }
+    .form-card-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 28px;
+    }
+    .form-card-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: rgba(0,229,255,.1); color: var(--cyan);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .form-card-header h2 { font-size: 1.1rem; font-weight: 600; }
+    .form-card-header p  { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+    label span.req { color: var(--cyan); margin-left: 3px; }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="tel"] {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 11px 14px;
+      font-size: .95rem;
+      outline: none;
+      transition: border-color .2s;
+      width: 100%;
+    }
+    input:focus { border-color: var(--cyan); }
+    input::placeholder { color: var(--muted); }
+
+    .discount-wrap { position: relative; }
+    .discount-wrap input { padding-right: 40px; }
+    .discount-wrap .suffix {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--cyan); font-weight: 700; font-size: .9rem; pointer-events: none;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px; border-radius: 8px; border: none;
+      font-size: .9rem; font-weight: 600; cursor: pointer;
+      text-decoration: none; transition: opacity .2s, transform .15s;
+    }
+    .btn:hover { opacity: .88; transform: translateY(-1px); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cyan), #0099cc);
+      color: #0a0f1e;
+    }
+    .btn-outline {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    .form-actions { margin-top: 28px; display: flex; gap: 12px; }
+
+    /* ── ALERTS ── */
+    .alert {
+      border-radius: 10px; padding: 14px 18px; margin-bottom: 24px;
+      display: flex; align-items: flex-start; gap: 10px; font-size: .9rem;
+    }
+    .alert-error   { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.3);  color: #fca5a5; }
+    .alert-success { background: rgba(34,197,94,.1);  border: 1px solid rgba(34,197,94,.3);  color: #86efac; }
+
+    /* ── TICKET PREVIEW ── */
+    .ticket-preview {
+      margin-top: 32px; text-align: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+    }
+    .ticket-preview img { max-width: 100%; border-radius: 8px; }
+    .ticket-preview .meta { margin-top: 12px; color: var(--muted); font-size: .85rem; }
+    .ticket-preview .meta strong { color: var(--cyan); font-size: 1rem; }
+    .ticket-download { margin-top: 14px; }
+
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">⚡ RAYUCODE ADMIN</span>
+  <div class="nav-links">
+    <a href="/admin" class="active">Create</a>
+    <a href="/admin/report">Report</a>
+    <a href="/">Public</a>
+  </div>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Promotional Code Manager</h1>
+    <p>Create discount tickets and manage promo code records.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-icon cyan">🎟</div>
+      <div>
+        <div class="stat-label">Total Codes</div>
+        <div class="stat-value">{{ total }}</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon purple">📊</div>
+      <div>
+        <div class="stat-label">View Report</div>
+        <div class="stat-value" style="font-size:1.1rem;margin-top:8px;">
+          <a href="/admin/report" style="color:var(--purple);text-decoration:none;">→ Open</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts -->
+  {% if error %}
+  <div class="alert alert-error">⚠ {{ error }}</div>
+  {% endif %}
+  {% if success %}
+  <div class="alert alert-success">✔ {{ success }}</div>
+  {% endif %}
+
+  <!-- Create Form -->
+  <div class="form-card">
+    <div class="form-card-header">
+      <div class="form-card-icon">＋</div>
+      <div>
+        <h2>Create New Promo Code Ticket</h2>
+        <p>Fields marked <span style="color:var(--cyan)">*</span> are required.</p>
+      </div>
+    </div>
+
+    <form action="/admin/create" method="POST">
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label for="promo_code">Promo Code <span class="req">*</span></label>
+          <input type="text" id="promo_code" name="promo_code"
+                 placeholder="e.g. RAYUCODE-VIP" required
+                 value="{{ request.form.get('promo_code', '') if not success else '' }}" />
+        </div>
+
+        <div class="form-group">
+          <label for="discount">Discount Percentage <span class="req">*</span></label>
+          <div class="discount-wrap">
+            <input type="number" id="discount" name="discount"
+                   placeholder="e.g. 20" min="0" max="100" step="0.01" required
+                   value="{{ request.form.get('discount', '') if not success else '' }}" />
+            <span class="suffix">%</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="customer_name">Customer Name <span style="color:var(--muted)">(optional)</span></label>
+          <input type="text" id="customer_name" name="customer_name"
+                 placeholder="e.g. John Doe"
+                 value="{{ request.form.get('customer_name', '') if not success else '' }}" />
+        </div>
+
+        <div class="form-group">
+          <label for="phone">Phone Number <span style="color:var(--muted)">(optional)</span></label>
+          <input type="tel" id="phone" name="phone"
+                 placeholder="e.g. +855 12 345 678"
+                 value="{{ request.form.get('phone', '') if not success else '' }}" />
+        </div>
+
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">⚡ Create Ticket</button>
+        <a href="/admin/report" class="btn btn-outline">📋 View Report</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Ticket Preview -->
+  {% if ticket_image %}
+  <div class="ticket-preview">
+    <img src="data:image/jpeg;base64,{{ ticket_image }}" alt="Generated Ticket" />
+    <div class="meta">Generated code: <strong>{{ promo_code }}</strong></div>
+    <div class="ticket-download">
+      <form action="/download" method="POST" style="display:inline;">
+        <input type="hidden" name="promo_code" value="{{ promo_code }}">
+        <button type="submit" class="btn btn-primary">⬇ Download Ticket JPG</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>
