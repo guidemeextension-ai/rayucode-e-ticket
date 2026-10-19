@@ -30,16 +30,16 @@ PROMO_CODES = [
 
 # Position in pixels, measured from the top-left corner of the image.
 # IMPORTANT: Change these example coordinates to fit your own ticket.
-X = 500
-Y = 400
+X = 440
+Y = 365
 
 FONT_SIZE = 36
-TEXT_COLOR = "#000000"
+TEXT_COLOR = "#1a3a5c"
 # Optional: set to a font file path, or leave None for automatic selection.
 FONT_PATH = None
 
 # Optional: center the code around X instead of starting at X.
-CENTER_TEXT = False
+CENTER_TEXT = True
 
 # JPEG output quality: 1–95. Higher means better quality and larger files.
 JPEG_QUALITY = 95

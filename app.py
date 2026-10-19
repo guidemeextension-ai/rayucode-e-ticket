@@ -17,12 +17,12 @@ app = Flask(__name__)
 # -------------------- SETTINGS --------------------
 TEMPLATE_PATH = Path("ticket_template.jpg")
 
-X = 500
-Y = 400
+X = 440
+Y = 365
 FONT_SIZE = 36
-TEXT_COLOR = "#000000"
+TEXT_COLOR = "#1a3a5c"
 FONT_PATH = None
-CENTER_TEXT = False
+CENTER_TEXT = True
 # --------------------------------------------------
 
 
