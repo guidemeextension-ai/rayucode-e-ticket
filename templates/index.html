@@ -279,6 +279,7 @@
   </div>
   <form action="/download" method="POST">
     <input type="hidden" name="promo_code" value="{{ promo_code }}" />
+    <input type="hidden" name="customer_name" value="{{ customer_name or '' }}" />
     <button type="submit" class="btn-download">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;">

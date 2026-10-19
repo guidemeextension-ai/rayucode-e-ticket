@@ -164,18 +164,20 @@ def generate():
             "created_at":    datetime.now().isoformat(timespec="seconds"),
         }
         append_record(record)
-        return render_template("index.html", ticket_image=img_base64, promo_code=code)
+        return render_template("index.html", ticket_image=img_base64,
+                               promo_code=code, customer_name=customer_name)
     except Exception as e:
         return render_template("index.html", error=f"Error: {e}")
 
 
 @app.route("/download", methods=["POST"])
 def download():
-    code = request.form.get("promo_code", "").strip().upper()
+    code          = request.form.get("promo_code", "").strip().upper()
+    customer_name = request.form.get("customer_name", "").strip()
     if not code:
         return render_template("index.html", error="No code provided.")
     try:
-        img_io = generate_ticket(code)
+        img_io = generate_ticket(code, customer_name)
         return send_file(img_io, mimetype="image/jpeg",
                          as_attachment=True, download_name=f"ticket_{code}.jpg")
     except Exception as e:
