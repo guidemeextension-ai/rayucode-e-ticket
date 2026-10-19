@@ -17,10 +17,10 @@ app = Flask(__name__)
 # -------------------- SETTINGS --------------------
 TEMPLATE_PATH = Path("ticket_template.jpg")
 
-X = 620
-Y = 647
-FONT_SIZE = 28
-TEXT_COLOR = "#1a3a5c"
+X = 236
+Y = 60
+FONT_SIZE = 32
+TEXT_COLOR = "#FFFFFF"
 FONT_PATH = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
 CENTER_TEXT = True
 # --------------------------------------------------
@@ -79,6 +79,24 @@ def generate_ticket(promo_code):
         text_width = right - left
         text_height = bottom - top
         text_x = X - text_width // 2
+
+    # Draw dark pill behind white text for visibility
+    if CENTER_TEXT:
+        left, top, right, bottom = draw.textbbox((0, 0), promo_code, font=font)
+        text_width = right - left
+        text_height = bottom - top
+        padding_x = 10
+        padding_y = 6
+        overlay = Image.new("RGBA", ticket.size, (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        overlay_draw.rounded_rectangle(
+            [text_x - padding_x, Y - padding_y,
+             text_x + text_width + padding_x, Y + text_height + padding_y],
+            radius=4,
+            fill=(0, 0, 0, 90)
+        )
+        ticket = Image.alpha_composite(ticket.convert("RGBA"), overlay).convert("RGB")
+        draw = ImageDraw.Draw(ticket)
 
     draw.text((text_x, Y), promo_code, font=font, fill=TEXT_COLOR)
 
