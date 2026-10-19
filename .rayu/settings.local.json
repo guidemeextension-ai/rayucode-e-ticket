@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import flask; print\\(''Flask OK''\\)\")",
+      "Bash(python3 -m pip install flask)"
+    ]
+  }
+}

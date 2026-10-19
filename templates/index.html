@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Ticket Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #302b63;
+            margin-bottom: 8px;
+            font-size: 1.8rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #302b63;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-generate {
+            background: linear-gradient(135deg, #302b63, #24243e);
+            color: white;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #00b09b, #96c93d);
+            color: white;
+            margin-top: 15px;
+            display: block;
+            width: 100%;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .ticket-preview {
+            margin-top: 25px;
+            text-align: center;
+        }
+
+        .ticket-preview img {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .code-label {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .code-value {
+            font-weight: 700;
+            color: #302b63;
+            font-size: 1.2rem;
+        }
+
+        .error {
+            background: #ff6b6b;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .download-section {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎫 E-Ticket Generator</h1>
+        <p class="subtitle">Enter a promo code to generate your ticket</p>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <form action="/generate" method="POST">
+            <div class="form-group">
+                <input type="text" name="promo_code" placeholder="Enter promo code..."
+                       value="{{ promo_code or '' }}" autocomplete="off" required>
+                <button type="submit" class="btn btn-generate">Generate</button>
+            </div>
+        </form>
+
+        {% if ticket_image %}
+        <div class="ticket-preview">
+            <img src="data:image/jpeg;base64,{{ ticket_image }}" alt="Generated Ticket">
+            <p class="code-label">Code: <span class="code-value">{{ promo_code }}</span></p>
+        </div>
+
+        <div class="download-section">
+            <form action="/download" method="POST">
+                <input type="hidden" name="promo_code" value="{{ promo_code }}">
+                <button type="submit" class="btn btn-download">⬇ Download as JPG</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
