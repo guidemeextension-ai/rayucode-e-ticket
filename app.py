@@ -121,12 +121,33 @@ def index():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    code = request.form.get("promo_code", "").strip().upper()
+    code          = request.form.get("promo_code", "").strip().upper()
+    customer_name = request.form.get("customer_name", "").strip()
+    phone         = request.form.get("phone", "").strip()
+    discount      = request.form.get("discount", "0").strip()
+
     if not code:
         return render_template("index.html", error="Please enter a promotion code.")
     try:
         img_io     = generate_ticket(code)
         img_base64 = base64.b64encode(img_io.getvalue()).decode("utf-8")
+
+        # Save record to JSON store
+        try:
+            discount_val = float(discount) if discount else 0.0
+        except ValueError:
+            discount_val = 0.0
+
+        record = {
+            "id":            str(uuid.uuid4()),
+            "promo_code":    code,
+            "customer_name": customer_name or None,
+            "phone":         phone or None,
+            "discount":      discount_val,
+            "created_at":    datetime.now().isoformat(timespec="seconds"),
+        }
+        append_record(record)
+
         return render_template("index.html", ticket_image=img_base64, promo_code=code)
     except Exception as e:
         return render_template("index.html", error=f"Error: {e}")
@@ -149,10 +170,9 @@ def download():
 
 @app.route("/admin")
 def admin():
-    """Admin panel — create promo codes."""
+    """Admin panel — records table."""
     records = load_records()
-    total   = len(records)
-    return render_template("admin.html", total=total)
+    return render_template("admin.html", records=records)
 
 
 @app.route("/admin/create", methods=["POST"])
@@ -208,9 +228,8 @@ def admin_create():
 
 @app.route("/admin/report")
 def admin_report():
-    """Report page — view, delete, export all promo records."""
-    records = load_records()
-    return render_template("report.html", records=records, total=len(records))
+    """Redirect old report URL to admin."""
+    return redirect(url_for("admin"))
 
 
 @app.route("/admin/delete/<record_id>", methods=["POST"])
@@ -234,7 +253,31 @@ def admin_export():
     )
 
 
-@app.route("/admin/ticket/<record_id>")
+@app.route("/admin/export/csv")
+def admin_export_csv():
+    """Download all records as a CSV file."""
+    import csv, io as _io
+    records = load_records()
+    output = _io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["#", "Promo Code", "Customer Name", "Contact", "Discount (%)", "Created At"])
+    for i, r in enumerate(records, 1):
+        writer.writerow([
+            i,
+            r.get("promo_code", ""),
+            r.get("customer_name") or "",
+            r.get("phone") or "",
+            r.get("discount", ""),
+            r.get("created_at", ""),
+        ])
+    csv_bytes = output.getvalue().encode("utf-8")
+    return Response(
+        csv_bytes,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=promo_records.csv"}
+    )
+
+
 def admin_ticket_download(record_id):
     """Re-download the ticket image for a given record."""
     records = load_records()

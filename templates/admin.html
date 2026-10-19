@@ -3,22 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin — Rayucode Ticket Generator</title>
+  <title>Admin — E-Ticket Records</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #0a0f1e;
-      --surface:  #0d1530;
-      --card:     #111828;
-      --border:   #1e2d50;
+      --bg:       #080d1a;
+      --surface:  #0c1225;
+      --card:     #0f1830;
+      --border:   #1a2744;
       --cyan:     #00e5ff;
       --purple:   #a855f7;
       --green:    #22c55e;
       --red:      #ef4444;
+      --yellow:   #f59e0b;
       --text:     #e2e8f0;
-      --muted:    #64748b;
-      --input-bg: #0a0f1e;
+      --muted:    #4a5880;
+      --row-hover:#131f3a;
     }
 
     body {
@@ -28,266 +29,422 @@
       min-height: 100vh;
     }
 
-    /* ── NAV ── */
+    /* ─── NAV ─── */
     nav {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 0 32px;
-      height: 60px;
+      height: 58px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 0 28px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
     .nav-brand {
-      font-size: 1.1rem;
-      font-weight: 700;
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: 1.5px;
       color: var(--cyan);
-      letter-spacing: 1px;
+      text-transform: uppercase;
     }
+    .nav-links { display: flex; gap: 6px; }
     .nav-links a {
       color: var(--muted);
       text-decoration: none;
-      margin-left: 24px;
-      font-size: .9rem;
-      transition: color .2s;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: .85rem;
+      font-weight: 500;
+      transition: color .2s, background .2s;
     }
-    .nav-links a:hover, .nav-links a.active { color: var(--text); }
-    .nav-links a.active { color: var(--cyan); }
+    .nav-links a:hover  { color: var(--text); background: rgba(255,255,255,.04); }
+    .nav-links a.active { color: var(--cyan); background: rgba(0,229,255,.07); }
 
-    /* ── LAYOUT ── */
-    .page { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+    /* ─── PAGE ─── */
+    .page { max-width: 1200px; margin: 0 auto; padding: 36px 24px 60px; }
 
-    .page-header h1 { font-size: 1.6rem; font-weight: 700; }
-    .page-header p  { color: var(--muted); margin-top: 4px; font-size: .9rem; }
+    /* ─── HEADER ─── */
+    .page-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .page-header h1 { font-size: 1.5rem; font-weight: 700; }
+    .page-header p  { color: var(--muted); font-size: .85rem; margin-top: 4px; }
 
-    /* ── STAT CARDS ── */
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; margin: 28px 0; }
-    .stat-card {
+    .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    /* ─── STAT STRIP ─── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .stat {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 20px 24px;
+      padding: 16px 20px;
+    }
+    .stat-label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .9px; }
+    .stat-value { font-size: 1.9rem; font-weight: 700; margin-top: 4px; line-height: 1; }
+    .stat-value.cyan   { color: var(--cyan); }
+    .stat-value.purple { color: var(--purple); }
+    .stat-value.green  { color: var(--green); }
+
+    /* ─── TOOLBAR ─── */
+    .toolbar {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
     }
-    .stat-icon {
-      width: 44px; height: 44px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.3rem;
-      flex-shrink: 0;
+    .search-box {
+      flex: 1;
+      min-width: 220px;
+      position: relative;
     }
-    .stat-icon.cyan   { background: rgba(0,229,255,.1); color: var(--cyan); }
-    .stat-icon.purple { background: rgba(168,85,247,.1); color: var(--purple); }
-    .stat-label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
-    .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; margin-top: 4px; }
+    .search-box input {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 9px 14px 9px 36px;
+      font-size: .875rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .search-box input:focus { border-color: var(--cyan); }
+    .search-box input::placeholder { color: var(--muted); }
+    .search-box .si {
+      position: absolute; left: 11px; top: 50%;
+      transform: translateY(-50%); font-size: .9rem; pointer-events: none;
+    }
+    .row-count { font-size: .8rem; color: var(--muted); white-space: nowrap; }
 
-    /* ── FORM CARD ── */
-    .form-card {
+    /* ─── TABLE ─── */
+    .table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+
+    thead th {
+      background: var(--surface);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .9px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      user-select: none;
+      cursor: pointer;
+    }
+    thead th:hover { color: var(--text); }
+    thead th.sorted-asc::after  { content: ' ↑'; color: var(--cyan); }
+    thead th.sorted-desc::after { content: ' ↓'; color: var(--cyan); }
+    thead th:last-child { cursor: default; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .12s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--row-hover); }
+    tbody tr.hidden { display: none; }
+
+    td {
+      padding: 13px 16px;
+      font-size: .875rem;
+      vertical-align: middle;
+    }
+
+    .num-cell   { color: var(--muted); font-size: .78rem; width: 40px; }
+    .code-badge {
+      display: inline-block;
+      background: rgba(0,229,255,.08);
+      color: var(--cyan);
+      border: 1px solid rgba(0,229,255,.2);
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .6px;
+      font-family: 'Courier New', monospace;
+      white-space: nowrap;
+    }
+    .disc-badge {
+      display: inline-block;
+      background: rgba(168,85,247,.12);
+      color: var(--purple);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: .8rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .dash { color: var(--muted); font-style: italic; font-size: .8rem; }
+    .date-cell { color: var(--muted); font-size: .78rem; white-space: nowrap; }
+
+    /* ─── BUTTONS ─── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 7px;
+      border: none;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity .18s, transform .12s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: .82; transform: translateY(-1px); }
+
+    .btn-cyan    { background: rgba(0,229,255,.12);  color: var(--cyan);   border: 1px solid rgba(0,229,255,.25); }
+    .btn-purple  { background: rgba(168,85,247,.15); color: var(--purple); border: 1px solid rgba(168,85,247,.3); }
+    .btn-green   { background: rgba(34,197,94,.12);  color: var(--green);  border: 1px solid rgba(34,197,94,.25); }
+    .btn-red     { background: rgba(239,68,68,.1);   color: var(--red);    border: 1px solid rgba(239,68,68,.22); }
+    .btn-red:hover { background: rgba(239,68,68,.2); opacity: 1; }
+
+    .action-cell { display: flex; gap: 6px; align-items: center; }
+
+    /* ─── EMPTY ─── */
+    .empty {
+      text-align: center;
+      padding: 72px 20px;
+      color: var(--muted);
+    }
+    .empty .emoji { font-size: 2.8rem; display: block; margin-bottom: 14px; }
+    .empty p { font-size: .95rem; }
+    .empty a { color: var(--cyan); }
+
+    /* ─── MODAL ─── */
+    .backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.75);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .backdrop.open { display: flex; }
+    .modal {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 32px;
+      max-width: 420px;
+      width: 92%;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5);
     }
-    .form-card-header {
-      display: flex; align-items: center; gap: 12px; margin-bottom: 28px;
-    }
-    .form-card-icon {
-      width: 36px; height: 36px; border-radius: 8px;
-      background: rgba(0,229,255,.1); color: var(--cyan);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.1rem;
-    }
-    .form-card-header h2 { font-size: 1.1rem; font-weight: 600; }
-    .form-card-header p  { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+    .modal h3 { font-size: 1.05rem; margin-bottom: 10px; }
+    .modal p  { color: var(--muted); font-size: .875rem; line-height: 1.5; margin-bottom: 24px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-group.full { grid-column: 1 / -1; }
-    label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
-    label span.req { color: var(--cyan); margin-left: 3px; }
-
-    input[type="text"],
-    input[type="number"],
-    input[type="tel"] {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      padding: 11px 14px;
-      font-size: .95rem;
-      outline: none;
-      transition: border-color .2s;
-      width: 100%;
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 768px) {
+      .col-phone, .col-phone-h { display: none; }
     }
-    input:focus { border-color: var(--cyan); }
-    input::placeholder { color: var(--muted); }
-
-    .discount-wrap { position: relative; }
-    .discount-wrap input { padding-right: 40px; }
-    .discount-wrap .suffix {
-      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-      color: var(--cyan); font-weight: 700; font-size: .9rem; pointer-events: none;
-    }
-
-    /* ── BUTTONS ── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 11px 22px; border-radius: 8px; border: none;
-      font-size: .9rem; font-weight: 600; cursor: pointer;
-      text-decoration: none; transition: opacity .2s, transform .15s;
-    }
-    .btn:hover { opacity: .88; transform: translateY(-1px); }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--cyan), #0099cc);
-      color: #0a0f1e;
-    }
-    .btn-outline {
-      background: transparent; border: 1px solid var(--border);
-      color: var(--text);
-    }
-    .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); }
-
-    .form-actions { margin-top: 28px; display: flex; gap: 12px; }
-
-    /* ── ALERTS ── */
-    .alert {
-      border-radius: 10px; padding: 14px 18px; margin-bottom: 24px;
-      display: flex; align-items: flex-start; gap: 10px; font-size: .9rem;
-    }
-    .alert-error   { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.3);  color: #fca5a5; }
-    .alert-success { background: rgba(34,197,94,.1);  border: 1px solid rgba(34,197,94,.3);  color: #86efac; }
-
-    /* ── TICKET PREVIEW ── */
-    .ticket-preview {
-      margin-top: 32px; text-align: center;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 24px;
-    }
-    .ticket-preview img { max-width: 100%; border-radius: 8px; }
-    .ticket-preview .meta { margin-top: 12px; color: var(--muted); font-size: .85rem; }
-    .ticket-preview .meta strong { color: var(--cyan); font-size: 1rem; }
-    .ticket-download { margin-top: 14px; }
-
-    @media (max-width: 600px) {
-      .form-grid { grid-template-columns: 1fr; }
-      .form-group.full { grid-column: 1; }
+    @media (max-width: 560px) {
+      .col-name, .col-name-h { display: none; }
     }
   </style>
 </head>
 <body>
 
 <nav>
-  <span class="nav-brand">⚡ RAYUCODE ADMIN</span>
+  <span class="nav-brand">⚡ Rayucode Admin</span>
   <div class="nav-links">
-    <a href="/admin" class="active">Create</a>
-    <a href="/admin/report">Report</a>
-    <a href="/">Public</a>
+    <a href="/admin" class="active">Records</a>
+    <a href="/">Public Site</a>
   </div>
 </nav>
 
 <div class="page">
 
+  <!-- Header -->
   <div class="page-header">
-    <h1>Promotional Code Manager</h1>
-    <p>Create discount tickets and manage promo code records.</p>
+    <div>
+      <h1>E-Ticket Records</h1>
+      <p>Every generated ticket is logged here permanently.</p>
+    </div>
+    <div class="header-actions">
+      <a href="/admin/export/csv"  class="btn btn-green">⬇ Export CSV</a>
+      <a href="/admin/export"      class="btn btn-purple">⬇ Export JSON</a>
+    </div>
   </div>
 
   <!-- Stats -->
+  {% set total = records | length %}
+  {% set with_name = records | selectattr('customer_name') | list | length %}
+  {% set avg_disc = (records | map(attribute='discount') | list | sum / total) if total > 0 else 0 %}
   <div class="stats">
-    <div class="stat-card">
-      <div class="stat-icon cyan">🎟</div>
-      <div>
-        <div class="stat-label">Total Codes</div>
-        <div class="stat-value">{{ total }}</div>
-      </div>
+    <div class="stat">
+      <div class="stat-label">Total Tickets</div>
+      <div class="stat-value cyan">{{ total }}</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-icon purple">📊</div>
-      <div>
-        <div class="stat-label">View Report</div>
-        <div class="stat-value" style="font-size:1.1rem;margin-top:8px;">
-          <a href="/admin/report" style="color:var(--purple);text-decoration:none;">→ Open</a>
-        </div>
-      </div>
+    <div class="stat">
+      <div class="stat-label">With Customer Name</div>
+      <div class="stat-value purple">{{ with_name }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Avg Discount</div>
+      <div class="stat-value green">{{ "%.0f"|format(avg_disc) }}%</div>
     </div>
   </div>
 
-  <!-- Alerts -->
-  {% if error %}
-  <div class="alert alert-error">⚠ {{ error }}</div>
-  {% endif %}
-  {% if success %}
-  <div class="alert alert-success">✔ {{ success }}</div>
-  {% endif %}
-
-  <!-- Create Form -->
-  <div class="form-card">
-    <div class="form-card-header">
-      <div class="form-card-icon">＋</div>
-      <div>
-        <h2>Create New Promo Code Ticket</h2>
-        <p>Fields marked <span style="color:var(--cyan)">*</span> are required.</p>
-      </div>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="search-box">
+      <span class="si">🔍</span>
+      <input id="search" type="text" placeholder="Search by name, code, contact…" />
     </div>
-
-    <form action="/admin/create" method="POST">
-      <div class="form-grid">
-
-        <div class="form-group">
-          <label for="promo_code">Promo Code <span class="req">*</span></label>
-          <input type="text" id="promo_code" name="promo_code"
-                 placeholder="e.g. RAYUCODE-VIP" required
-                 value="{{ request.form.get('promo_code', '') if not success else '' }}" />
-        </div>
-
-        <div class="form-group">
-          <label for="discount">Discount Percentage <span class="req">*</span></label>
-          <div class="discount-wrap">
-            <input type="number" id="discount" name="discount"
-                   placeholder="e.g. 20" min="0" max="100" step="0.01" required
-                   value="{{ request.form.get('discount', '') if not success else '' }}" />
-            <span class="suffix">%</span>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="customer_name">Customer Name <span style="color:var(--muted)">(optional)</span></label>
-          <input type="text" id="customer_name" name="customer_name"
-                 placeholder="e.g. John Doe"
-                 value="{{ request.form.get('customer_name', '') if not success else '' }}" />
-        </div>
-
-        <div class="form-group">
-          <label for="phone">Phone Number <span style="color:var(--muted)">(optional)</span></label>
-          <input type="tel" id="phone" name="phone"
-                 placeholder="e.g. +855 12 345 678"
-                 value="{{ request.form.get('phone', '') if not success else '' }}" />
-        </div>
-
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">⚡ Create Ticket</button>
-        <a href="/admin/report" class="btn btn-outline">📋 View Report</a>
-      </div>
-    </form>
+    <span class="row-count" id="rowCount">{{ total }} record{{ 's' if total != 1 }}</span>
   </div>
 
-  <!-- Ticket Preview -->
-  {% if ticket_image %}
-  <div class="ticket-preview">
-    <img src="data:image/jpeg;base64,{{ ticket_image }}" alt="Generated Ticket" />
-    <div class="meta">Generated code: <strong>{{ promo_code }}</strong></div>
-    <div class="ticket-download">
-      <form action="/download" method="POST" style="display:inline;">
-        <input type="hidden" name="promo_code" value="{{ promo_code }}">
-        <button type="submit" class="btn btn-primary">⬇ Download Ticket JPG</button>
+  <!-- Table -->
+  <div class="table-card">
+    {% if records %}
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th class="num-cell">#</th>
+          <th data-col="0">Promo Code</th>
+          <th data-col="1" class="col-name-h">Customer Name</th>
+          <th data-col="2" class="col-phone-h">Contact</th>
+          <th data-col="3">Discount</th>
+          <th data-col="4">Date & Time</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        {% for r in records | sort(attribute='created_at', reverse=True) %}
+        <tr data-search="{{ [r.promo_code, r.customer_name or '', r.phone or ''] | join(' ') | lower }}">
+          <td class="num-cell">{{ loop.index }}</td>
+          <td><span class="code-badge">{{ r.promo_code }}</span></td>
+          <td class="col-name">
+            {% if r.customer_name %}{{ r.customer_name }}
+            {% else %}<span class="dash">—</span>{% endif %}
+          </td>
+          <td class="col-phone">
+            {% if r.phone %}{{ r.phone }}
+            {% else %}<span class="dash">—</span>{% endif %}
+          </td>
+          <td><span class="disc-badge">{{ r.discount | int }}%</span></td>
+          <td class="date-cell">{{ r.created_at | replace('T', '  ') }}</td>
+          <td>
+            <div class="action-cell">
+              <a href="/admin/ticket/{{ r.id }}" class="btn btn-cyan" title="Download ticket JPG">⬇ Ticket</a>
+              <button class="btn btn-red"
+                      onclick="askDelete('{{ r.id }}', '{{ r.promo_code }}')"
+                      title="Delete this record">🗑 Delete</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <span class="emoji">📭</span>
+      <p>No tickets generated yet.<br>
+         Go to the <a href="/">public page</a> to generate your first ticket.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="backdrop" id="modal">
+  <div class="modal">
+    <h3>Delete Record?</h3>
+    <p id="modal-msg">This will permanently remove the record.</p>
+    <div class="modal-actions">
+      <button class="btn btn-cyan" onclick="closeModal()">Cancel</button>
+      <form id="del-form" method="POST">
+        <button type="submit" class="btn btn-red">🗑 Delete</button>
       </form>
     </div>
   </div>
-  {% endif %}
-
 </div>
+
+<script>
+  // ── Live search ──
+  const searchInput = document.getElementById('search');
+  const rowCount    = document.getElementById('rowCount');
+
+  searchInput && searchInput.addEventListener('input', () => {
+    const q    = searchInput.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#tbody tr');
+    let vis    = 0;
+    rows.forEach(row => {
+      const match = row.dataset.search.includes(q);
+      row.classList.toggle('hidden', !match);
+      if (match) vis++;
+    });
+    rowCount.textContent = vis + ' record' + (vis !== 1 ? 's' : '');
+  });
+
+  // ── Column sort ──
+  let lastCol = -1, ascending = true;
+  document.querySelectorAll('thead th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = parseInt(th.dataset.col);
+      ascending = (col === lastCol) ? !ascending : true;
+      lastCol   = col;
+
+      document.querySelectorAll('thead th').forEach(h => {
+        h.classList.remove('sorted-asc', 'sorted-desc');
+      });
+      th.classList.add(ascending ? 'sorted-asc' : 'sorted-desc');
+
+      const tbody = document.getElementById('tbody');
+      const rows  = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort((a, b) => {
+        const aVal = a.cells[col + 1].textContent.trim().toLowerCase();
+        const bVal = b.cells[col + 1].textContent.trim().toLowerCase();
+        return ascending
+          ? aVal.localeCompare(bVal, undefined, { numeric: true })
+          : bVal.localeCompare(aVal, undefined, { numeric: true });
+      });
+      rows.forEach(r => tbody.appendChild(r));
+
+      // Re-number visible rows
+      let n = 1;
+      rows.forEach(r => { r.cells[0].textContent = n++; });
+    });
+  });
+
+  // ── Delete modal ──
+  function askDelete(id, code) {
+    document.getElementById('modal-msg').textContent =
+      `Permanently delete the record for "${code}"? This cannot be undone.`;
+    document.getElementById('del-form').action = `/admin/delete/${id}`;
+    document.getElementById('modal').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('modal').classList.remove('open');
+  }
+  document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal')) closeModal();
+  });
+</script>
+
 </body>
 </html>
