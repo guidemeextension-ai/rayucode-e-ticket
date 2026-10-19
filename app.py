@@ -143,6 +143,6 @@ if __name__ == "__main__":
     if not TEMPLATE_PATH.is_file():
         print("ERROR: ticket_template.jpg not found! Put it in this folder.")
     else:
-        port = int(os.environ.get("PORT", 8080))
+        port = int(os.environ.get("PORT", 3000))
         debug = os.environ.get("FLASK_ENV") == "development"
         app.run(host="0.0.0.0", port=port, debug=debug)
