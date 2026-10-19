@@ -59,19 +59,24 @@ def append_record(record: dict) -> None:
 # ==================== IMAGE HELPERS ====================
 
 def find_font(font_size: int):
-    """Load the best available bold font."""
+    """Load the best available bold font. Bundled font in fonts/ takes priority."""
     candidates = [
+        # Bundled with repo — works on every platform (macOS, Linux, Railway)
+        Path("fonts/Arial Bold.ttf"),
+        # macOS system fonts (fallback for local dev if bundled font missing)
         Path(FONT_PATH),
         Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
         Path("/System/Library/Fonts/Supplemental/Helvetica Bold.ttf"),
         Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
         Path("/Library/Fonts/Arial Bold.ttf"),
         Path("/Library/Fonts/Arial.ttf"),
+        # Linux system fonts (fallback)
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
         Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
         Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
         Path("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
+        # Windows
         Path("C:/Windows/Fonts/arialbd.ttf"),
         Path("C:/Windows/Fonts/arial.ttf"),
     ]
