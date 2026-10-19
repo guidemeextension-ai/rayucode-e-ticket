@@ -18,7 +18,7 @@ app = Flask(__name__)
 TEMPLATE_PATH = Path("ticket_template.jpg")
 
 X = 2632
-Y = 1050
+Y = 1100
 FONT_SIZE = 200
 TEXT_COLOR = "#FFFFFF"
 FONT_PATH = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
