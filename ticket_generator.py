@@ -30,11 +30,11 @@ PROMO_CODES = [
 
 # Position in pixels, measured from the top-left corner of the image.
 # IMPORTANT: Change these example coordinates to fit your own ticket.
-X = 440
-Y = 365
+X = 2634
+Y = 932
 
-FONT_SIZE = 36
-TEXT_COLOR = "#1a3a5c"
+FONT_SIZE = 28
+TEXT_COLOR = "#0a1a2e"
 # Optional: set to a font file path, or leave None for automatic selection.
 FONT_PATH = None
 
