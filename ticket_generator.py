@@ -30,10 +30,10 @@ PROMO_CODES = [
 
 # Position in pixels, measured from the top-left corner of the image.
 # Centered inside the promo code box (template is 5280×2970px).
-X = 2635          # Horizontal center of the promo code box
-Y = 2480          # Vertical center of the promo code box interior (2365–2595)
+X = 961           # Horizontal center of the promo code box (1920×1080 template)
+Y = 899           # Vertical center of the promo code box interior (Y 848–950)
 
-FONT_SIZE = 140   # Sized to fit the box at full 5280×2970 resolution
+FONT_SIZE = 55    # Sized to fit the box at 1920×1080 resolution
 TEXT_COLOR = "#FFFFFF"  # White text to show on the dark box background
 # Optional: set to a font file path, or leave None for automatic selection.
 FONT_PATH = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"

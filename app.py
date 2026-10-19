@@ -19,9 +19,9 @@ app = Flask(__name__)
 # -------------------- SETTINGS --------------------
 TEMPLATE_PATH = Path("ticket_template.jpg")
 
-X          = 2635   # Horizontal center of the promo code box
-Y          = 2480   # Vertical center of the promo code box interior (2365–2595)
-FONT_SIZE  = 140    # Full-res 5280×2970 template
+X          = 961    # Horizontal center of the promo code box (1920×1080 template)
+Y          = 899    # Vertical center of the promo code box interior (Y 848–950)
+FONT_SIZE  = 55     # Sized to fit the box at 1920×1080 resolution
 TEXT_COLOR = "#FFFFFF"
 FONT_PATH  = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
 
