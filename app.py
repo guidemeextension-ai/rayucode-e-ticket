@@ -21,9 +21,14 @@ TEMPLATE_PATH = Path("ticket_template.jpg")
 
 X          = 961    # Horizontal center of the promo code box (1920×1080 template)
 Y          = 899    # Vertical center of the promo code box interior (Y 848–950)
-FONT_SIZE  = 55     # Sized to fit the box at 1920×1080 resolution
+FONT_SIZE  = 55     # Sized to fit the promo code box at 1920×1080 resolution
 TEXT_COLOR = "#FFFFFF"
 FONT_PATH  = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+
+# "ISSUED TO:" name field coordinates
+NAME_X         = 1150   # Horizontal center of the name area (after the label)
+NAME_Y         = 590    # Vertically aligned with "ISSUED TO:" label (Y 580–600)
+NAME_FONT_SIZE = 28     # Smaller font for the name field
 
 # JSON data store
 DATA_FILE = Path("promo_records.json")
@@ -89,22 +94,34 @@ def find_font(font_size: int):
     return ImageFont.load_default()
 
 
-def generate_ticket(promo_code: str) -> io.BytesIO:
-    """Render the promo code onto the ticket template and return JPEG bytes."""
+def generate_ticket(promo_code: str, customer_name: str = "") -> io.BytesIO:
+    """Render the promo code (and optional name) onto the ticket template."""
     with Image.open(TEMPLATE_PATH) as src:
         template = src.convert("RGB")
 
-    font   = find_font(FONT_SIZE)
     ticket = template.copy()
     draw   = ImageDraw.Draw(ticket)
 
-    bbox        = draw.textbbox((0, 0), promo_code, font=font)
+    # ── Promo code (centered in promo box) ──
+    font_code   = find_font(FONT_SIZE)
+    bbox        = draw.textbbox((0, 0), promo_code, font=font_code)
     text_width  = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
-    text_x      = X - text_width  // 2
-    text_y      = Y - text_height // 2
+    draw.text(
+        (X - text_width // 2, Y - text_height // 2),
+        promo_code, font=font_code, fill=TEXT_COLOR
+    )
 
-    draw.text((text_x, text_y), promo_code, font=font, fill=TEXT_COLOR)
+    # ── Customer name on ISSUED TO line (optional) ──
+    if customer_name:
+        font_name = find_font(NAME_FONT_SIZE)
+        nbbox     = draw.textbbox((0, 0), customer_name, font=font_name)
+        nw        = nbbox[2] - nbbox[0]
+        nh        = nbbox[3] - nbbox[1]
+        draw.text(
+            (NAME_X - nw // 2, NAME_Y - nh // 2),
+            customer_name, font=font_name, fill=TEXT_COLOR
+        )
 
     img_io = io.BytesIO()
     ticket.save(img_io, "JPEG", quality=95, optimize=True)
@@ -129,7 +146,7 @@ def generate():
     if not code:
         return render_template("index.html", error="Please enter a promotion code.")
     try:
-        img_io     = generate_ticket(code)
+        img_io     = generate_ticket(code, customer_name)
         img_base64 = base64.b64encode(img_io.getvalue()).decode("utf-8")
 
         # Save record to JSON store
@@ -147,7 +164,6 @@ def generate():
             "created_at":    datetime.now().isoformat(timespec="seconds"),
         }
         append_record(record)
-
         return render_template("index.html", ticket_image=img_base64, promo_code=code)
     except Exception as e:
         return render_template("index.html", error=f"Error: {e}")
