@@ -8,125 +8,64 @@ import io
 import os
 import json
 import base64
-import uuid
+import hmac
 from datetime import datetime
-from pathlib import Path
-from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify, Response
-from PIL import Image, ImageDraw, ImageFont
+from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify, Response, session
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+from ticket_core import (
+    TEMPLATE_PATH,
+    load_records, save_records, append_record, update_record,
+    ensure_qr_tokens, new_qr_token, build_record,
+    generate_ticket,
+)
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
+
+# Trust Railway's proxy headers so request.url_root is the public https URL.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # -------------------- SETTINGS --------------------
-TEMPLATE_PATH = Path("ticket_template.jpg")
 
-X          = 961    # Horizontal center of the promo code box (1920×1080 template)
-Y          = 899    # Vertical center of the promo code box interior (Y 848–950)
-FONT_SIZE  = 55     # Sized to fit the promo code box at 1920×1080 resolution
-TEXT_COLOR = "#FFFFFF"
-FONT_PATH  = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-
-# "ISSUED TO:" name field coordinates
-NAME_X         = 1150   # Horizontal center of the name area (after the label)
-NAME_Y         = 590    # Vertically aligned with "ISSUED TO:" label (Y 580–600)
-NAME_FONT_SIZE = 28     # Smaller font for the name field
-
-# JSON data store
-DATA_FILE = Path("promo_records.json")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "welcom to rayu e-ticket @2026")
 # --------------------------------------------------
 
 
-# ==================== DATA HELPERS ====================
+# ==================== AUTH ROUTES ====================
 
-def load_records() -> list:
-    """Load all promo records from the JSON file."""
-    if DATA_FILE.is_file():
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return []
-    return []
-
-
-def save_records(records: list) -> None:
-    """Persist the records list to the JSON file."""
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(records, f, ensure_ascii=False, indent=2)
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if password == ADMIN_PASSWORD:
+            session["admin_logged_in"] = True
+            return redirect(url_for("admin"))
+        return render_template("login.html", error="Incorrect password.")
+    return render_template("login.html")
 
 
-def append_record(record: dict) -> None:
-    """Add a new record and save."""
-    records = load_records()
-    records.append(record)
-    save_records(records)
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin_logged_in", None)
+    return redirect(url_for("admin_login"))
 
 
-# ==================== IMAGE HELPERS ====================
-
-def find_font(font_size: int):
-    """Load the best available bold font. Bundled font in fonts/ takes priority."""
-    candidates = [
-        # Bundled with repo — works on every platform (macOS, Linux, Railway)
-        Path("fonts/Arial Bold.ttf"),
-        # macOS system fonts (fallback for local dev if bundled font missing)
-        Path(FONT_PATH),
-        Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
-        Path("/System/Library/Fonts/Supplemental/Helvetica Bold.ttf"),
-        Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
-        Path("/Library/Fonts/Arial Bold.ttf"),
-        Path("/Library/Fonts/Arial.ttf"),
-        # Linux system fonts (fallback)
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
-        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
-        Path("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
-        # Windows
-        Path("C:/Windows/Fonts/arialbd.ttf"),
-        Path("C:/Windows/Fonts/arial.ttf"),
-    ]
-    for c in candidates:
-        try:
-            if c.is_file():
-                return ImageFont.truetype(str(c), font_size)
-        except OSError:
-            pass
-    return ImageFont.load_default()
-
-
-def generate_ticket(promo_code: str, customer_name: str = "") -> io.BytesIO:
-    """Render the promo code (and optional name) onto the ticket template."""
-    with Image.open(TEMPLATE_PATH) as src:
-        template = src.convert("RGB")
-
-    ticket = template.copy()
-    draw   = ImageDraw.Draw(ticket)
-
-    # ── Promo code (centered in promo box) ──
-    font_code   = find_font(FONT_SIZE)
-    bbox        = draw.textbbox((0, 0), promo_code, font=font_code)
-    text_width  = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    draw.text(
-        (X - text_width // 2, Y - text_height // 2),
-        promo_code, font=font_code, fill=TEXT_COLOR
-    )
-
-    # ── Customer name on ISSUED TO line (optional) ──
-    if customer_name:
-        font_name = find_font(NAME_FONT_SIZE)
-        nbbox     = draw.textbbox((0, 0), customer_name, font=font_name)
-        nw        = nbbox[2] - nbbox[0]
-        nh        = nbbox[3] - nbbox[1]
-        draw.text(
-            (NAME_X - nw // 2, NAME_Y - nh // 2),
-            customer_name, font=font_name, fill=TEXT_COLOR
-        )
-
-    img_io = io.BytesIO()
-    ticket.save(img_io, "JPEG", quality=95, optimize=True)
-    img_io.seek(0)
-    return img_io
+def admin_required(f):
+    """Decorator: redirect to login if not authenticated."""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("admin_logged_in"):
+            return redirect(url_for("admin_login"))
+        return f(*args, **kwargs)
+    return decorated
 
 
 # ==================== PUBLIC ROUTES ====================
@@ -155,14 +94,7 @@ def generate():
         except ValueError:
             discount_val = 0.0
 
-        record = {
-            "id":            str(uuid.uuid4()),
-            "promo_code":    code,
-            "customer_name": customer_name or None,
-            "phone":         phone or None,
-            "discount":      discount_val,
-            "created_at":    datetime.now().isoformat(timespec="seconds"),
-        }
+        record = build_record(code, customer_name, phone, discount_val)
         append_record(record)
         return render_template("index.html", ticket_image=img_base64,
                                promo_code=code, customer_name=customer_name)
@@ -187,13 +119,15 @@ def download():
 # ==================== ADMIN ROUTES ====================
 
 @app.route("/admin")
+@admin_required
 def admin():
     """Admin panel — records table."""
-    records = load_records()
+    records = ensure_qr_tokens(load_records())
     return render_template("admin.html", records=records)
 
 
 @app.route("/admin/create", methods=["POST"])
+@admin_required
 def admin_create():
     """Create a new promo code record and generate the ticket."""
     customer_name = request.form.get("customer_name", "").strip()
@@ -202,12 +136,14 @@ def admin_create():
     promo_code    = request.form.get("promo_code", "").strip().upper()
 
     # Validate required fields
+    records = load_records()
+
     if not discount:
         return render_template("admin.html", error="Discount percentage is required.",
-                               total=len(load_records()))
+                               total=len(records), records=records)
     if not promo_code:
         return render_template("admin.html", error="Promo code is required.",
-                               total=len(load_records()))
+                               total=len(records), records=records)
 
     try:
         discount_val = float(discount)
@@ -215,42 +151,40 @@ def admin_create():
             raise ValueError
     except ValueError:
         return render_template("admin.html", error="Discount must be a number between 0 and 100.",
-                               total=len(load_records()))
+                               total=len(records), records=records)
 
     # Build record
-    record = {
-        "id":            str(uuid.uuid4()),
-        "promo_code":    promo_code,
-        "customer_name": customer_name or None,
-        "phone":         phone or None,
-        "discount":      discount_val,
-        "created_at":    datetime.now().isoformat(timespec="seconds"),
-    }
+    record = build_record(promo_code, customer_name, phone, discount_val,
+                          telegram_username=request.form.get("telegram_username", "").strip())
     append_record(record)
 
     # Generate preview image
     try:
-        img_io     = generate_ticket(promo_code)
+        img_io     = generate_ticket(promo_code, customer_name)
         img_base64 = base64.b64encode(img_io.getvalue()).decode("utf-8")
     except Exception:
         img_base64 = None
 
+    records = ensure_qr_tokens(load_records())
     return render_template("admin.html",
                            success=f"Ticket created for code: {promo_code}",
                            ticket_image=img_base64,
                            promo_code=promo_code,
-                           total=len(load_records()))
+                           record_id=record["id"],
+                           total=len(records), records=records)
 
 
 # ==================== REPORT ROUTES ====================
 
 @app.route("/admin/report")
+@admin_required
 def admin_report():
     """Redirect old report URL to admin."""
     return redirect(url_for("admin"))
 
 
 @app.route("/admin/delete/<record_id>", methods=["POST"])
+@admin_required
 def admin_delete(record_id):
     """Delete a single promo record by ID."""
     records = load_records()
@@ -260,6 +194,7 @@ def admin_delete(record_id):
 
 
 @app.route("/admin/export")
+@admin_required
 def admin_export():
     """Download all records as a JSON file."""
     records = load_records()
@@ -272,6 +207,7 @@ def admin_export():
 
 
 @app.route("/admin/export/csv")
+@admin_required
 def admin_export_csv():
     """Download all records as a CSV file."""
     import csv, io as _io
@@ -296,6 +232,8 @@ def admin_export_csv():
     )
 
 
+@app.route("/admin/ticket/<record_id>")
+@admin_required
 def admin_ticket_download(record_id):
     """Re-download the ticket image for a given record."""
     records = load_records()
@@ -303,11 +241,160 @@ def admin_ticket_download(record_id):
     if not record:
         return "Record not found", 404
     try:
-        img_io = generate_ticket(record["promo_code"])
+        img_io = generate_ticket(record["promo_code"], record.get("customer_name") or "")
         return send_file(img_io, mimetype="image/jpeg", as_attachment=True,
                          download_name=f"ticket_{record['promo_code']}.jpg")
     except Exception as e:
         return f"Error generating ticket: {e}", 500
+
+
+# ==================== TELEGRAM ROUTES ====================
+
+@app.route("/telegram/webhook", methods=["POST"])
+def telegram_webhook():
+    """Receive updates pushed by Telegram.
+
+    Telegram authenticates itself with the X-Telegram-Bot-Api-Secret-Token
+    header, which is the secret we passed to setWebhook.
+    """
+    import telegram_bot
+
+    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+    if secret:
+        sent = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if not hmac.compare_digest(sent, secret):
+            return "Forbidden", 403
+
+    update = request.get_json(silent=True) or {}
+    try:
+        log = telegram_bot.handle_update(update)
+        print(f"[telegram] {log}")
+    except Exception as e:                                  # noqa: BLE001
+        print(f"[telegram] error: {e}")
+    return "", 200
+
+
+@app.route("/admin/telegram/status")
+@admin_required
+def admin_telegram_status():
+    """Bot identity + webhook state, for the admin panel."""
+    import telegram_bot
+
+    status = {
+        "configured": bool(telegram_bot.BOT_TOKEN),
+        "username":    telegram_bot.BOT_USERNAME,
+        "dry_run":     telegram_bot.DRY_RUN,
+        "webhook":     None,
+        "error":       None,
+    }
+    if not telegram_bot.BOT_TOKEN:
+        status["error"] = "TELEGRAM_BOT_TOKEN is not set."
+    else:
+        try:
+            status["username"] = telegram_bot.bot_username()
+            info = telegram_bot.get_webhook_info()
+            status["webhook"] = {
+                "url":                    info.get("url", ""),
+                "pending_update_count":   info.get("pending_update_count", 0),
+                "last_error_message":     info.get("last_error_message", ""),
+                "has_custom_certificate": info.get("has_custom_certificate", False),
+            }
+        except Exception as e:                              # noqa: BLE001
+            status["error"] = str(e)
+    return jsonify(status)
+
+
+@app.route("/admin/telegram/connect", methods=["POST"])
+@admin_required
+def admin_telegram_connect():
+    """Point Telegram's webhook at this deployment."""
+    import telegram_bot
+
+    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+    if not secret:
+        return jsonify({
+            "ok": False,
+            "error": "Set TELEGRAM_WEBHOOK_SECRET in your environment first.",
+        }), 400
+
+    base = os.environ.get("PUBLIC_URL", "").rstrip("/") or request.url_root.rstrip("/")
+    url  = f"{base}/telegram/webhook"
+
+    if not url.startswith("https://"):
+        return jsonify({
+            "ok": False,
+            "error": f"Telegram requires an HTTPS URL, but this deployment is at {base}. "
+                     "Set PUBLIC_URL to your public https address (e.g. "
+                     "https://your-app.up.railway.app) and try again.",
+        }), 400
+
+    try:
+        telegram_bot.set_webhook(url, secret)
+    except Exception as e:                                  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    return jsonify({"ok": True, "url": url})
+
+
+@app.route("/admin/telegram/disconnect", methods=["POST"])
+@admin_required
+def admin_telegram_disconnect():
+    """Remove the webhook so local polling can take over."""
+    import telegram_bot
+
+    try:
+        telegram_bot.delete_webhook()
+    except Exception as e:                                  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/qr/<record_id>.png")
+@admin_required
+def admin_qr(record_id):
+    """PNG of the ticket's unique QR code."""
+    import telegram_bot
+
+    record = next((r for r in load_records() if r.get("id") == record_id), None)
+    if not record:
+        return "Record not found", 404
+    if not record.get("qr_token"):
+        record = update_record(record_id, qr_token=new_qr_token()) or record
+    try:
+        png = telegram_bot.qr_png(record["qr_token"]).getvalue()
+    except Exception as e:                                  # noqa: BLE001
+        return f"Error generating QR: {e}", 500
+    return Response(png, mimetype="image/png",
+                    headers={"Content-Disposition": f"inline; filename=qr_{record_id}.png"})
+
+
+@app.route("/admin/send/<record_id>", methods=["POST"])
+@admin_required
+def admin_send_ticket(record_id):
+    """Send a ticket to the customer's Telegram chat."""
+    import telegram_bot
+
+    record = next((r for r in load_records() if r.get("id") == record_id), None)
+    if not record:
+        return jsonify({"ok": False, "error": "Record not found."}), 404
+
+    chat_id = request.form.get("chat_id", "").strip() or (record.get("telegram_chat_id") or "")
+    if not chat_id:
+        return jsonify({
+            "ok": False,
+            "error": "No Telegram chat id yet. The customer must message the bot "
+                     "first, or paste a chat id here.",
+        }), 400
+
+    try:
+        telegram_bot.send_ticket_to_chat(chat_id, record)
+    except Exception as e:                                  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    update_record(record_id,
+                  telegram_chat_id=str(chat_id),
+                  telegram_sent_at=datetime.now().isoformat(timespec="seconds"))
+    return jsonify({"ok": True, "chat_id": str(chat_id)})
 
 
 # ==================== MAIN ====================

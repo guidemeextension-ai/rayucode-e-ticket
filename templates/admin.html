@@ -65,6 +65,199 @@
     /* ─── PAGE ─── */
     .page { max-width: 1200px; margin: 0 auto; padding: 36px 24px 60px; }
 
+    /* ─── ALERTS ─── */
+    .alert {
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: .85rem;
+      margin-bottom: 20px;
+    }
+    .alert-error   { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.25);  color: var(--red); }
+    .alert-success { background: rgba(34,197,94,.1);  border: 1px solid rgba(34,197,94,.25);  color: var(--green); }
+
+    /* ─── CREATE FORM ─── */
+    .form-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px 26px;
+      margin-bottom: 28px;
+    }
+    .form-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .form-card-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,229,255,.1);
+      color: var(--cyan);
+    }
+    .form-card-header h2 { font-size: 1rem; font-weight: 700; }
+    .form-card-header p  { color: var(--muted); font-size: .8rem; margin-top: 3px; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label {
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--muted);
+    }
+    .form-group input,
+    .form-group select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: .9rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .form-group input:focus,
+    .form-group select:focus { border-color: var(--cyan); }
+    .form-group input::placeholder { color: var(--muted); }
+    .form-group select {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      padding-right: 36px;
+      cursor: pointer;
+    }
+    .form-group select option { background: var(--surface); color: var(--text); }
+    .select-wrap { position: relative; width: 100%; }
+    .select-wrap::after {
+      content: "";
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: translateY(-70%) rotate(45deg);
+      pointer-events: none;
+    }
+    .select-wrap:focus-within::after { border-color: var(--cyan); }
+
+    /* ─── Discount combo: free-typed input + preset dropdown ─── */
+    .combo { display: flex; gap: 8px; align-items: stretch; }
+    .combo .disc-wrap { position: relative; flex: 1 1 auto; min-width: 0; }
+    .combo .disc-wrap input { width: 100%; padding-right: 34px; }
+    /* Hide the number spinner — it collides with the % suffix. */
+    .combo .disc-wrap input::-webkit-outer-spin-button,
+    .combo .disc-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .combo .disc-wrap input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+    .combo .pct {
+      position: absolute; right: 12px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--cyan); font-weight: 700; font-size: .85rem;
+      pointer-events: none;
+    }
+    .combo .select-wrap { flex: 0 0 124px; }
+    .req { color: var(--cyan); }
+    .form-actions { display: flex; gap: 10px; margin-top: 20px; }
+
+    /* ─── TELEGRAM PANEL ─── */
+    .tg-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 22px;
+      margin-bottom: 24px;
+    }
+    .tg-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .tg-head h2 { font-size: .95rem; font-weight: 700; }
+    .tg-badge {
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: .4px;
+    }
+    .tg-badge.on  { background: rgba(34,197,94,.14); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+    .tg-badge.off { background: rgba(239,68,68,.12); color: var(--red);   border: 1px solid rgba(239,68,68,.28); }
+    .tg-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: .8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .tg-row strong { color: var(--text); font-weight: 600; }
+    .tg-row code {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-size: .75rem;
+      color: var(--cyan);
+    }
+    .tg-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .tg-msg { font-size: .8rem; margin-top: 10px; }
+    .tg-msg.ok  { color: var(--green); }
+    .tg-msg.err { color: var(--red); }
+
+    /* ─── QR MODAL ─── */
+    .qr-modal {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      max-width: 380px;
+      width: 92%;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5);
+    }
+    .qr-modal h3 { font-size: 1rem; margin-bottom: 6px; }
+    .qr-modal p  { color: var(--muted); font-size: .82rem; margin-bottom: 18px; }
+    .qr-modal img {
+      width: 100%;
+      max-width: 260px;
+      background: #fff;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .qr-modal .modal-actions { justify-content: center; margin-top: 18px; }
+
+    /* ─── PREVIEW ─── */
+    .preview-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .preview-card img {
+      width: 100%;
+      max-width: 620px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .preview-card .meta { color: var(--muted); font-size: .82rem; }
+    .preview-card .meta strong { color: var(--cyan); }
+
     /* ─── HEADER ─── */
     .page-header {
       display: flex;
@@ -199,6 +392,29 @@
     .dash { color: var(--muted); font-style: italic; font-size: .8rem; }
     .date-cell { color: var(--muted); font-size: .78rem; white-space: nowrap; }
 
+    .tg-sent {
+      display: inline-block;
+      background: rgba(34,197,94,.12);
+      color: var(--green);
+      border: 1px solid rgba(34,197,94,.25);
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: .75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .tg-ready {
+      display: inline-block;
+      background: rgba(0,229,255,.08);
+      color: var(--cyan);
+      border: 1px solid rgba(0,229,255,.2);
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: .75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
     /* ─── BUTTONS ─── */
     .btn {
       display: inline-flex;
@@ -259,6 +475,10 @@
     /* ─── RESPONSIVE ─── */
     @media (max-width: 768px) {
       .col-phone, .col-phone-h { display: none; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .col-tg, .col-tg-h { display: none; }
     }
     @media (max-width: 560px) {
       .col-name, .col-name-h { display: none; }
@@ -276,10 +496,14 @@
   <div class="nav-links">
     <a href="/admin" class="active">Records</a>
     <a href="/">Public Site</a>
+    <a href="/admin/logout">Logout</a>
   </div>
 </nav>
 
 <div class="page">
+
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+  {% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
 
   <!-- Header -->
   <div class="page-header">
@@ -298,6 +522,116 @@
       </a>
     </div>
   </div>
+
+  <!-- Telegram Panel -->
+  <div class="tg-panel">
+    <div class="tg-head">
+      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+      </svg>
+      <h2>Telegram Bot</h2>
+      <span class="tg-badge off" id="tgBadge">checking…</span>
+    </div>
+
+    <div class="tg-row" id="tgInfo">
+      <span>Loading bot status…</span>
+    </div>
+
+    <div class="tg-actions">
+      <button type="button" class="btn btn-cyan" id="tgConnect">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Connect Webhook
+      </button>
+      <button type="button" class="btn btn-purple" id="tgRefresh">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m0 0H9"/></svg>
+        Refresh
+      </button>
+      <button type="button" class="btn btn-red" id="tgDisconnect">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        Disconnect
+      </button>
+    </div>
+    <div class="tg-msg" id="tgMsg"></div>
+  </div>
+
+  <!-- Create Form -->
+  <div class="form-card">
+    <div class="form-card-header">
+      <div class="form-card-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      </div>
+      <div>
+        <h2>Create New Promo Code Ticket</h2>
+        <p>Fields marked <span class="req">*</span> are required.</p>
+      </div>
+    </div>
+
+    <form action="/admin/create" method="POST">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="promo_code">Promo Code <span class="req">*</span></label>
+          <input type="text" id="promo_code" name="promo_code"
+                 placeholder="e.g. RAYUCODE-VIP" required autocomplete="off"
+                 value="{{ request.form.get('promo_code', '') if not success else '' }}" />
+        </div>
+        <div class="form-group">
+          <label for="discount">Discount Percentage <span class="req">*</span></label>
+          {% set discounts = [30, 35, 40, 50, 70, 75, 90, 100] %}
+          <div class="combo">
+            <div class="disc-wrap">
+              <input type="number" id="discount" name="discount"
+                     placeholder="e.g. 20" min="0" max="100" step="0.01" required
+                     value="{{ request.form.get('discount', '') if not success else '' }}" />
+              <span class="pct">%</span>
+            </div>
+            <div class="select-wrap">
+              <select id="discountPreset" aria-label="Preset discount values">
+                <option value="">Custom…</option>
+                {% for d in discounts %}
+                <option value="{{ d }}">{{ d }}%</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="customer_name">Customer Name <span style="color:var(--muted)">(optional)</span></label>
+          <input type="text" id="customer_name" name="customer_name"
+                 placeholder="e.g. John Doe"
+                 value="{{ request.form.get('customer_name', '') if not success else '' }}" />
+        </div>
+        <div class="form-group">
+          <label for="phone">Phone Number <span style="color:var(--muted)">(optional)</span></label>
+          <input type="tel" id="phone" name="phone"
+                 placeholder="e.g. +855 12 345 678"
+                 value="{{ request.form.get('phone', '') if not success else '' }}" />
+        </div>
+        <div class="form-group">
+          <label for="telegram_username">Telegram <span style="color:var(--muted)">(optional)</span></label>
+          <input type="text" id="telegram_username" name="telegram_username"
+                 placeholder="e.g. @jumnuy"
+                 value="{{ request.form.get('telegram_username', '') if not success else '' }}" />
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-cyan">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Create Ticket
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {% if ticket_image %}
+  <div class="preview-card">
+    <img src="data:image/jpeg;base64,{{ ticket_image }}" alt="Generated Ticket" />
+    <div class="meta">Generated code: <strong>{{ promo_code }}</strong></div>
+    <a href="/admin/ticket/{{ record_id }}" class="btn btn-green">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Download Ticket JPG
+    </a>
+  </div>
+  {% endif %}
 
   <!-- Stats -->
   {% set total = records | length %}
@@ -338,13 +672,14 @@
           <th data-col="1" class="col-name-h">Customer Name</th>
           <th data-col="2" class="col-phone-h">Contact</th>
           <th data-col="3">Discount</th>
-          <th data-col="4">Date & Time</th>
+          <th data-col="4" class="col-tg-h">Telegram</th>
+          <th data-col="5">Date & Time</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody id="tbody">
         {% for r in records | sort(attribute='created_at', reverse=True) %}
-        <tr data-search="{{ [r.promo_code, r.customer_name or '', r.phone or ''] | join(' ') | lower }}">
+        <tr data-search="{{ [r.promo_code, r.customer_name or '', r.phone or '', r.telegram_chat_name or ''] | join(' ') | lower }}">
           <td class="num-cell">{{ loop.index }}</td>
           <td><span class="code-badge">{{ r.promo_code }}</span></td>
           <td class="col-name">
@@ -356,6 +691,15 @@
             {% else %}<span class="dash">—</span>{% endif %}
           </td>
           <td><span class="disc-badge">{{ r.discount | int }}%</span></td>
+          <td class="col-tg">
+            {% if r.telegram_sent_at %}
+              <span class="tg-sent" title="{{ r.telegram_chat_name or '' }}">✓ sent</span>
+            {% elif r.telegram_chat_id %}
+              <span class="tg-ready" title="{{ r.telegram_chat_name or '' }}">ready</span>
+            {% else %}
+              <span class="dash">—</span>
+            {% endif %}
+          </td>
           <td class="date-cell">{{ r.created_at | replace('T', '  ') }}</td>
           <td>
             <div class="action-cell">
@@ -363,6 +707,18 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Ticket
               </a>
+              <button class="btn btn-purple"
+                      onclick="showQR('{{ r.id }}', '{{ r.promo_code }}')"
+                      title="Show QR code">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v4m-8 8h4m16 0h4m-4 4v4M8 12H4m16 0h-4M12 20v-4m-4-4h8"/></svg>
+                QR
+              </button>
+              <button class="btn btn-green"
+                      onclick="askSend('{{ r.id }}', '{{ r.promo_code }}', '{{ r.telegram_chat_id or '' }}', '{{ r.telegram_chat_name or '' }}')"
+                      title="Send ticket to Telegram">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                Send
+              </button>
               <button class="btn btn-red"
                       onclick="askDelete('{{ r.id }}', '{{ r.promo_code }}')"
                       title="Delete this record">
@@ -403,6 +759,41 @@
         </button>
       </form>
     </div>
+  </div>
+</div>
+
+<!-- QR Modal -->
+<div class="backdrop" id="qr-modal">
+  <div class="qr-modal">
+    <h3>Scan to Get Ticket</h3>
+    <p id="qr-msg">Customer scans this with their Telegram camera.</p>
+    <img id="qr-img" alt="Ticket QR code" />
+    <div class="modal-actions">
+      <a id="qr-download" class="btn btn-cyan" download="ticket-qr.png">Download PNG</a>
+      <button class="btn btn-green" onclick="closeQR()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Send to Telegram Modal -->
+<div class="backdrop" id="send-modal">
+  <div class="modal">
+    <h3>Send Ticket to Telegram</h3>
+    <p id="send-msg">The customer must message the bot first so we know their chat id.</p>
+    <form id="send-form" method="POST">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label for="send-chat-id">Telegram Chat ID</label>
+        <input type="text" id="send-chat-id" name="chat_id" placeholder="e.g. 123456789" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-cyan" onclick="closeSend()">Cancel</button>
+        <button type="submit" class="btn btn-green">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          Send Ticket
+        </button>
+      </div>
+    </form>
+    <div class="tg-msg" id="send-result"></div>
   </div>
 </div>
 
@@ -466,6 +857,164 @@
   document.getElementById('modal').addEventListener('click', e => {
     if (e.target === document.getElementById('modal')) closeModal();
   });
+
+  // ── Telegram status panel ──
+  const tgBadge = document.getElementById('tgBadge');
+  const tgInfo  = document.getElementById('tgInfo');
+  const tgMsg   = document.getElementById('tgMsg');
+
+  function tgSay(text, ok) {
+    tgMsg.textContent = text;
+    tgMsg.className = 'tg-msg ' + (ok ? 'ok' : 'err');
+  }
+
+  async function loadTgStatus() {
+    tgBadge.textContent = 'checking…';
+    tgBadge.className = 'tg-badge off';
+    try {
+      const r = await fetch('/admin/telegram/status');
+      const d = await r.json();
+
+      if (!d.configured) {
+        tgBadge.textContent = 'not configured';
+        tgInfo.innerHTML = '<span>Set <code>TELEGRAM_BOT_TOKEN</code> in your environment to enable the bot.</span>';
+        return;
+      }
+
+      const wh = d.webhook;
+      const linked = wh && wh.url;
+      tgBadge.textContent = linked ? 'connected' : 'no webhook';
+      tgBadge.className = 'tg-badge ' + (linked ? 'on' : 'off');
+
+      const bits = [];
+      bits.push('Bot: <strong>@' + (d.username || '?') + '</strong>');
+      bits.push(linked
+        ? 'Webhook: <code>' + wh.url + '</code>'
+        : 'Webhook: <em>not connected</em>');
+      if (linked && wh.pending_update_count) {
+        bits.push('Pending updates: <strong>' + wh.pending_update_count + '</strong>');
+      }
+      if (linked && wh.last_error_message) {
+        bits.push('Last error: <span style="color:var(--red)">' + wh.last_error_message + '</span>');
+      }
+      if (d.dry_run) bits.push('Mode: <strong>dry run</strong> (messages are not sent)');
+      tgInfo.innerHTML = bits.join('<br>');
+    } catch (e) {
+      tgBadge.textContent = 'error';
+      tgInfo.innerHTML = '<span style="color:var(--red)">' + e + '</span>';
+    }
+  }
+
+  document.getElementById('tgRefresh').addEventListener('click', loadTgStatus);
+
+  document.getElementById('tgConnect').addEventListener('click', async () => {
+    tgSay('Connecting…', true);
+    try {
+      const r = await fetch('/admin/telegram/connect', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        tgSay('✅ Webhook connected → ' + d.url, true);
+        loadTgStatus();
+      } else {
+        tgSay('❌ ' + d.error, false);
+      }
+    } catch (e) {
+      tgSay('❌ ' + e, false);
+    }
+  });
+
+  loadTgStatus();
+
+  document.getElementById('tgDisconnect').addEventListener('click', async () => {
+    tgSay('Disconnecting…', true);
+    try {
+      const r = await fetch('/admin/telegram/disconnect', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        tgSay('✅ Webhook removed — local polling can take over now.', true);
+        loadTgStatus();
+      } else {
+        tgSay('❌ ' + d.error, false);
+      }
+    } catch (e) {
+      tgSay('❌ ' + e, false);
+    }
+  });
+
+  // ── QR modal ──
+  function showQR(id, code) {
+    const url = '/admin/qr/' + id + '.png';
+    document.getElementById('qr-img').src = url;
+    document.getElementById('qr-download').href = url;
+    document.getElementById('qr-msg').textContent =
+      'Scan this with the Telegram camera to get the ticket for ' + code + '.';
+    document.getElementById('qr-modal').classList.add('open');
+  }
+  function closeQR() {
+    document.getElementById('qr-modal').classList.remove('open');
+  }
+  document.getElementById('qr-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('qr-modal')) closeQR();
+  });
+
+  // ── Send to Telegram modal ──
+  function askSend(id, code, chatId, chatName) {
+    const form = document.getElementById('send-form');
+    form.action = '/admin/send/' + id;
+    document.getElementById('send-chat-id').value = chatId || '';
+    document.getElementById('send-result').textContent = '';
+    document.getElementById('send-msg').textContent = chatId
+      ? 'Send the ticket for ' + code + ' to ' + (chatName || chatId) + '.'
+      : 'The customer must message the bot first so we know their chat id. '
+        + 'You can also paste a chat id here.';
+    document.getElementById('send-modal').classList.add('open');
+  }
+  function closeSend() {
+    document.getElementById('send-modal').classList.remove('open');
+  }
+  document.getElementById('send-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('send-modal')) closeSend();
+  });
+
+  document.getElementById('send-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const result = document.getElementById('send-result');
+    result.textContent = 'Sending…';
+    result.className = 'tg-msg';
+    try {
+      const r = await fetch(e.target.action, {
+        method: 'POST',
+        body: new FormData(e.target),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        result.textContent = '✅ Ticket sent to ' + d.chat_id;
+        result.className = 'tg-msg ok';
+        setTimeout(() => { closeSend(); location.reload(); }, 1200);
+      } else {
+        result.textContent = '❌ ' + d.error;
+        result.className = 'tg-msg err';
+      }
+    } catch (err) {
+      result.textContent = '❌ ' + err;
+      result.className = 'tg-msg err';
+    }
+  });
+
+  // ── Discount combo: preset dropdown fills the free-typed input ──
+  const discInput  = document.getElementById('discount');
+  const discPreset = document.getElementById('discountPreset');
+  if (discInput && discPreset) {
+    discPreset.addEventListener('change', () => {
+      if (discPreset.value !== '') discInput.value = discPreset.value;
+    });
+    discInput.addEventListener('input', () => {
+      // Keep the dropdown in sync: show the preset matching what was typed, else "Custom…".
+      const typed = discInput.value.trim();
+      const hit   = [...discPreset.options].find(o => o.value !== '' && o.value === typed);
+      discPreset.value = hit ? hit.value : '';
+    });
+  }
 </script>
 
 </body>

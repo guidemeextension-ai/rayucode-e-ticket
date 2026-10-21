@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — E-Ticket</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:       #080d1a;
+      --surface:  #0c1225;
+      --card:     #0f1830;
+      --border:   #1a2744;
+      --cyan:     #00e5ff;
+      --text:     #e2e8f0;
+      --muted:    #4a5880;
+      --red:      #ef4444;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 400px;
+      width: 92%;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5);
+    }
+    .login-card h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .login-card p {
+      color: var(--muted);
+      font-size: .875rem;
+      margin-bottom: 24px;
+    }
+    .login-card label {
+      display: block;
+      font-size: .8rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .login-card input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 12px 14px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .login-card input:focus { border-color: var(--cyan); }
+    .login-card button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(0,229,255,.12);
+      color: var(--cyan);
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .login-card button:hover { background: rgba(0,229,255,.2); }
+    .error {
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.25);
+      color: var(--red);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: .85rem;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <h1>Admin Login</h1>
+    <p>Enter the admin password to continue.</p>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter password" autofocus>
+      <button type="submit">Sign In</button>
+    </form>
+  </div>
+</body>
+</html>

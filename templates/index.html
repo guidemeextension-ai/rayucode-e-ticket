@@ -126,8 +126,10 @@
 
     .divider { border: none; border-top: 1px solid #1a2744; margin: 20px 0; }
 
+    .btn-row { display: flex; gap: 12px; }
+
     .btn-generate {
-      width: 100%;
+      flex: 1;
       padding: 13px;
       background: linear-gradient(135deg, #00e5ff, #0099cc);
       color: #080d1a;
@@ -140,6 +142,20 @@
       transition: opacity .2s, transform .15s;
     }
     .btn-generate:hover { opacity: .88; transform: translateY(-1px); }
+
+    .btn-clear {
+      padding: 13px 22px;
+      background: transparent;
+      color: #4a5880;
+      border: 1px solid #1a2744;
+      border-radius: 10px;
+      font-size: .95rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color .2s, border-color .2s;
+    }
+    .btn-clear:hover { color: #00e5ff; border-color: #00e5ff; }
 
     .error {
       background: rgba(239,68,68,.12);
@@ -197,7 +213,7 @@
   </div>
   {% endif %}
 
-  <form action="/generate" method="POST">
+  <form id="ticket-form" action="/generate" method="POST">
 
     <!-- Promo Code — required + show/hide toggle -->
     <div class="form-group">
@@ -205,7 +221,7 @@
       <div class="input-wrap">
         <input type="password" id="promo_code" name="promo_code"
                placeholder="Enter promo code…"
-               value="{{ promo_code or '' }}" required autocomplete="off" />
+               required autocomplete="off" />
         <button type="button" class="toggle-btn" id="togglePromo"
                 onclick="toggleVisibility('promo_code', 'togglePromo')"
                 title="Show">
@@ -263,13 +279,22 @@
       </div>
     </div>
 
-    <button type="submit" class="btn-generate">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
-           viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-      </svg>
-      Generate Ticket
-    </button>
+    <div class="btn-row">
+      <button type="submit" class="btn-generate">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
+             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Generate Ticket
+      </button>
+      <button type="button" class="btn-clear" onclick="clearForm()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
+             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Clear
+      </button>
+    </div>
   </form>
 
   {% if ticket_image %}
@@ -305,6 +330,18 @@
       input.type = 'password';
       iconEye.style.display    = '';
       iconEyeOff.style.display = 'none';
+    }
+  }
+
+  function clearForm() {
+    document.getElementById('ticket-form').reset();
+    const promo = document.getElementById('promo_code');
+    if (promo) {
+      promo.type = 'password';
+      const iconEye    = document.getElementById('icon-eye');
+      const iconEyeOff = document.getElementById('icon-eye-off');
+      if (iconEye)    iconEye.style.display = '';
+      if (iconEyeOff) iconEyeOff.style.display = 'none';
     }
   }
 </script>
