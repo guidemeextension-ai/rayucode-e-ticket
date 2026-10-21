@@ -40,6 +40,11 @@ DRY_RUN       = os.environ.get("TELEGRAM_DRY_RUN", "") == "1"
 
 API_BASE = "https://api.telegram.org"
 TIMEOUT  = 30
+# Photo uploads are ~390 KB and occasionally stall for a minute on a bad
+# network hop, so they get a longer budget than the small JSON calls.
+UPLOAD_TIMEOUT = 120
+# How many times to retry a failed upload before giving up.
+UPLOAD_RETRIES = 3
 
 # Per-chat lookup throttle: max LOOKUP_LIMIT lookups per LOOKUP_WINDOW seconds.
 LOOKUP_LIMIT  = 10
@@ -118,23 +123,38 @@ def send_message(chat_id: str, text: str) -> dict:
 
 def send_photo(chat_id: str, photo: bytes, filename: str = "ticket.jpg",
                caption: str = "") -> dict:
-    """Send a JPEG as a photo (multipart upload)."""
+    """Send a JPEG as a photo (multipart upload).
+
+    Uploads can stall for a minute on a bad network hop, so this retries
+    a few times before giving up — a customer should not be left without
+    their ticket because of one flaky request.
+    """
     if DRY_RUN:
         print(f"[dry-run] sendPhoto -> {chat_id}: {filename} ({len(photo)} bytes) {caption}")
         return {"ok": True, "dry_run": True}
     payload = {"chat_id": str(chat_id)}
     if caption:
         payload["caption"] = caption
-    resp = requests.post(
-        f"{API_BASE}/bot{BOT_TOKEN}/sendPhoto",
-        data=payload,
-        files={"photo": (filename, photo, "image/jpeg")},
-        timeout=TIMEOUT,
-    )
-    data = resp.json()
-    if not data.get("ok"):
-        raise TelegramError(data.get("description", "sendPhoto failed"))
-    return data["result"]
+
+    last_error = None
+    for attempt in range(1, UPLOAD_RETRIES + 1):
+        try:
+            resp = requests.post(
+                f"{API_BASE}/bot{BOT_TOKEN}/sendPhoto",
+                data=payload,
+                files={"photo": (filename, photo, "image/jpeg")},
+                timeout=UPLOAD_TIMEOUT,
+            )
+            data = resp.json()
+            if not data.get("ok"):
+                raise TelegramError(data.get("description", "sendPhoto failed"))
+            return data["result"]
+        except (requests.RequestException, ValueError) as e:
+            last_error = e
+            print(f"[telegram] upload attempt {attempt}/{UPLOAD_RETRIES} failed: {e}")
+            if attempt < UPLOAD_RETRIES:
+                time.sleep(2 * attempt)
+    raise TelegramError(f"sendPhoto failed after {UPLOAD_RETRIES} attempts: {last_error}")
 
 
 # ==================== QR CODES ====================
@@ -173,10 +193,10 @@ def _norm(text: str) -> str:
 
 
 def find_records_by_contact(contact: str) -> list:
-    """Match a contact string (phone number or @username) against records.
+    """Match a contact string against records.
 
     Strongest match first: exact phone, then phone digits, then Telegram
-    username, then customer name.
+    username, then customer name, then promo code.
     """
     contact     = (contact or "").strip()
     norm        = _norm(contact)
@@ -186,6 +206,12 @@ def find_records_by_contact(contact: str) -> list:
     records = load_records()
     if not records:
         return []
+
+    # 0. Exact promo code match — the strongest possible signal
+    if len(norm) >= 4:
+        hits = [r for r in records if _norm(r.get("promo_code", "")) == norm]
+        if hits:
+            return hits
 
     # 1. Exact phone match
     hits = [r for r in records if r.get("phone") and _norm(r["phone"]) == norm]
