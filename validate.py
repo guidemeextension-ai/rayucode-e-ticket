@@ -22,7 +22,15 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "welcom to rayu e-ticket @2026")
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Read the same password the app uses — no hardcoded fallback, since this
+# repository is public.
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "").strip()
 
 results: list[tuple[str, bool, str]] = []
 
@@ -74,6 +82,55 @@ def test_files() -> None:
     check("DATA_FILE is set", bool(ticket_core.DATA_FILE), str(ticket_core.DATA_FILE))
     check("bundled font present", Path("fonts/Arial Bold.ttf").is_file(),
           "fonts/Arial Bold.ttf")
+
+
+# ─────────────────────── 1b. NO SECRETS COMMITTED ───────────────────────
+def test_no_secrets_committed() -> None:
+    """This repository is public — no token or password may be committed."""
+    section("1b. Committed files carry no secrets")
+
+    import re
+    import subprocess
+
+    # Patterns that would mean a live credential is in the repo.
+    # No \b word boundary: in "bot8905583754:AAH..." the 't' and '8' are both
+    # word characters, so a boundary would never match there.
+    token_rx   = re.compile(r"\d{8,10}:[A-Za-z0-9_-]{35}")
+    password_rx = re.compile(r"welcom to rayu e-ticket")
+
+    def is_placeholder(match: str) -> bool:
+        """Ignore obvious documentation placeholders like 123456789:AAxxxx…"""
+        secret = match.split(":", 1)[-1]
+        return "xxxx" in secret.lower() or len(set(secret)) <= 2
+
+    tracked = subprocess.run(
+        ["git", "ls-files"], capture_output=True, text=True, check=False
+    ).stdout.split()
+
+    scanner = Path(__file__).name
+    token_hits, password_hits = [], []
+
+    for name in tracked:
+        if not name.endswith((".py", ".html", ".json", ".md", ".txt", ".cfg")):
+            continue
+        path = Path(name)
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if any(not is_placeholder(m.group(0)) for m in token_rx.finditer(text)):
+            token_hits.append(name)
+        # This file holds the detection pattern itself.
+        if name != scanner and password_rx.search(text):
+            password_hits.append(name)
+
+    check("no Telegram bot token in tracked files", not token_hits, ", ".join(token_hits))
+    check("no admin password in tracked files", not password_hits, ", ".join(password_hits))
+
+    # .env must never be tracked
+    check(".env is not tracked", ".env" not in tracked)
 
 
 # ─────────────────────────── 2. TICKET RENDERER ───────────────────────────
@@ -227,6 +284,11 @@ def test_web() -> None:
         return
 
     # log in
+    if not ADMIN_PASSWORD:
+        check("login succeeds", False,
+              "ADMIN_PASSWORD is not set — set it in .env or the environment")
+        return
+
     session = requests.Session()
     try:
         r = session.post(f"{BASE}/admin/login", data={"password": ADMIN_PASSWORD},
@@ -306,8 +368,9 @@ def main() -> int:
     print(f"Target: {BASE}")
     print("=" * 62)
 
-    for test in (test_files, test_renderer, test_store, test_lookup,
-                 test_qr, test_telegram_api, test_web, test_bot_replies):
+    for test in (test_files, test_no_secrets_committed, test_renderer,
+                 test_store, test_lookup, test_qr, test_telegram_api,
+                 test_web, test_bot_replies):
         try:
             test()
         except Exception as e:                               # noqa: BLE001

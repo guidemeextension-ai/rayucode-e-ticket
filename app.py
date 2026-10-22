@@ -10,6 +10,7 @@ import json
 import base64
 import errno
 import hmac
+import secrets
 import socket
 from datetime import datetime
 from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify, Response, session
@@ -29,14 +30,28 @@ except ImportError:
     pass
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
 
 # Trust Railway's proxy headers so request.url_root is the public https URL.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # -------------------- SETTINGS --------------------
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "welcom to rayu e-ticket @2026")
+# A missing secret key invalidates every session on restart, so it is
+# generated rather than falling back to a shared constant.
+SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_urlsafe(48)
+app.secret_key = SECRET_KEY
+
+# The admin password is never given a hardcoded fallback: this repository is
+# public, so any default here would be a published password. Local runs get
+# a random one printed to the console; production must set the variable.
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "").strip()
+if not ADMIN_PASSWORD:
+    ADMIN_PASSWORD = secrets.token_urlsafe(12)
+    print("=" * 62)
+    print("ADMIN_PASSWORD is not set — using a random one for this run:")
+    print(f"    {ADMIN_PASSWORD}")
+    print("Set it in the environment to keep the same password across restarts.")
+    print("=" * 62)
 # --------------------------------------------------
 
 
@@ -484,4 +499,14 @@ if __name__ == "__main__":
         # forward to a free port instead of refusing to start.
         on_railway = bool(os.environ.get("RAILWAY_ENVIRONMENT")
                           or os.environ.get("RAILWAY_PROJECT_ID"))
+        if on_railway:
+            missing = [v for v in ("SECRET_KEY", "ADMIN_PASSWORD")
+                       if not os.environ.get(v, "").strip()]
+            if missing:
+                print("=" * 62)
+                print("WARNING: missing environment variables: "
+                      + ", ".join(missing))
+                print("Sessions will not survive a restart and the admin panel")
+                print("is using a random password. Set them in Railway.")
+                print("=" * 62)
         run_server(preferred, debug, allow_shift=not on_railway)

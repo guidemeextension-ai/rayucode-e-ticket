@@ -28,8 +28,9 @@ python3 app.py
 
 Open **http://localhost:5050** — the public page generates and downloads tickets.
 
-The admin panel is at **http://localhost:5050/admin** (password from
-`ADMIN_PASSWORD`, default is in `app.py`).
+The admin panel is at **http://localhost:5050/admin**. Set `ADMIN_PASSWORD` in
+`.env` — there is no built-in default, so a run without it prints a random
+password to the console.
 
 If port 5050 is already taken, the app moves to the next free one (5051, 5052, …)
 and prints the URL it is using. On Railway the port is fixed by the platform,
@@ -87,8 +88,8 @@ with that customer's ticket.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `SECRET_KEY` | recommended | Flask session signing |
-| `ADMIN_PASSWORD` | recommended | Admin panel password |
+| `SECRET_KEY` | required in production | Flask session signing |
+| `ADMIN_PASSWORD` | required in production | Admin panel password |
 | `DATA_FILE` | recommended on Railway | Path to the JSON store (use a mounted volume) |
 | `TELEGRAM_BOT_TOKEN` | for the bot | From @BotFather |
 | `TELEGRAM_BOT_USERNAME` | optional | Override; resolved via `getMe` if omitted |
