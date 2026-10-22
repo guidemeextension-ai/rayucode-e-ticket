@@ -13,6 +13,7 @@ deliver them to customers over Telegram.
 | `telegram_polling.py` | Local long-poll runner for testing the bot without a public URL |
 | `ticket_generator.py` | Batch-generate tickets for a list of codes |
 | `validate.py` | End-to-end check of the whole system (50 checks) |
+| `DEPLOY.md` | Deploy runbook: Railway setup, credential rotation, troubleshooting |
 | `ticket_template.jpg` | Your ticket design (swap in your own) |
 | `templates/` | Web app HTML templates |
 | `fonts/` | Bundled `Arial Bold.ttf` so rendering works on any platform |
@@ -207,6 +208,9 @@ Set these in the dashboard:
   every deploy wipes your records and Telegram chat ids.
 
 Then open the admin panel and click **Connect Webhook**.
+
+See **[DEPLOY.md](DEPLOY.md)** for the full runbook — first deploy, credential
+rotation, testing the bot, and troubleshooting.
 
 ---
 
