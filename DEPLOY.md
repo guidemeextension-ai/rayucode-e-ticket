@@ -193,6 +193,30 @@ Check in this order:
      --jq '.[] | {login, push: .permissions.push, admin: .permissions.admin}'
    ```
 
+### The live site is running an old version
+
+A push that happened while builds were paused leaves the deployment on
+whatever it was serving before. The site stays up and looks healthy, so this
+is easy to miss. **Check the version, not just the status code:**
+
+```bash
+# Does the live site have the admin login?
+curl -s -o /dev/null -w "%{http_code}\n" https://<your-app>.up.railway.app/admin/login
+```
+
+`404` means the deployment predates the auth work. Until Railway rebuilds,
+the old build may expose `/admin`, `/admin/export`, `/admin/create` and
+`/admin/delete` **without any password**.
+
+If that is the case, treat it as an incident:
+
+1. Check the live build's commit in Railway → the service's deploy history.
+2. If the old build has no auth, the admin routes are open to the internet.
+   Anyone can read every record, create records, and delete them.
+3. Remove the public domain (**Settings → Networking → Remove Domain**) to
+   take the site offline until the fixed build is deployed.
+4. Re-add it once the new build is live and `/admin/login` returns 200.
+
 ### "Address already in use"
 
 Cannot happen in production — Railway assigns the port. Locally the app moves
