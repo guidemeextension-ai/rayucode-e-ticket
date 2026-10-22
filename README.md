@@ -77,7 +77,6 @@ sessions do not survive a restart.
 
 ### Rotating credentials
 
-If a secret was ever pasted into a chat, a log, or a public issue, rotate it —
 the old value should be treated as compromised. For the bot token, use
 [@BotFather](https://t.me/BotFather) to issue a new one, then update
 `TELEGRAM_BOT_TOKEN`.
