@@ -5,3 +5,4 @@ __pycache__/
 output/
 .dist/
 promo_records.json
+.rayu

@@ -12,10 +12,12 @@ deliver them to customers over Telegram.
 | `telegram_bot.py` | Telegram Bot API client, ticket lookup, QR deep links |
 | `telegram_polling.py` | Local long-poll runner for testing the bot without a public URL |
 | `ticket_generator.py` | Batch-generate tickets for a list of codes |
+| `validate.py` | End-to-end check of the whole system (50 checks) |
 | `ticket_template.jpg` | Your ticket design (swap in your own) |
 | `templates/` | Web app HTML templates |
 | `fonts/` | Bundled `Arial Bold.ttf` so rendering works on any platform |
 | `output/` | Generated tickets / QR codes (gitignored) |
+| `.env.example` | Template for the environment variables below |
 
 ---
 
@@ -23,14 +25,13 @@ deliver them to customers over Telegram.
 
 ```bash
 python3 -m pip install -r requirements.txt
+cp .env.example .env      # then fill it in — see "Credentials" below
 python3 app.py
 ```
 
 Open **http://localhost:5050** — the public page generates and downloads tickets.
 
-The admin panel is at **http://localhost:5050/admin**. Set `ADMIN_PASSWORD` in
-`.env` — there is no built-in default, so a run without it prints a random
-password to the console.
+The admin panel is at **http://localhost:5050/admin**.
 
 If port 5050 is already taken, the app moves to the next free one (5051, 5052, …)
 and prints the URL it is using. On Railway the port is fixed by the platform,
@@ -42,6 +43,47 @@ so the app stays on exactly that one.
    customer name, phone and `@username` are optional.
 2. The ticket preview renders immediately; **Download Ticket JPG** saves it.
 3. Every record is logged permanently and can be exported as CSV or JSON.
+4. The **Telegram Bot** panel shows the bot's connection state and a QR code
+   that opens a chat with it. Each row also gets **QR** and **Send** buttons.
+
+---
+
+## Credentials
+
+**No credentials are stored in this repository, and there are no built-in
+defaults.** Every secret comes from the environment, so nothing works until
+you set it. This matters because the repository is public — a hardcoded
+fallback would be a published password.
+
+Copy `.env.example` to `.env` (gitignored) and fill it in:
+
+```bash
+SECRET_KEY=<a long random string>
+ADMIN_PASSWORD=<a password of your choosing>
+TELEGRAM_BOT_TOKEN=<from @BotFather>
+TELEGRAM_WEBHOOK_SECRET=<another long random string>
+```
+
+Generate random values with:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+If `ADMIN_PASSWORD` is missing, the app generates a random one for that run
+and prints it to the console, so the admin panel is never open to a guess.
+If `SECRET_KEY` is missing, a random one is generated too — which means
+sessions do not survive a restart.
+
+### Rotating credentials
+
+If a secret was ever pasted into a chat, a log, or a public issue, rotate it —
+the old value should be treated as compromised. For the bot token, use
+[@BotFather](https://t.me/BotFather) to issue a new one, then update
+`TELEGRAM_BOT_TOKEN`.
+
+`validate.py` fails if a bot token or the admin password is found in any
+tracked file, so a secret cannot be committed by accident.
 
 ---
 
@@ -54,14 +96,7 @@ their voucher.
 ### Setup
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the token.
-2. Copy `.env.example` to `.env` and fill it in:
-
-```bash
-TELEGRAM_BOT_TOKEN=123456789:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TELEGRAM_WEBHOOK_SECRET=generate-a-long-random-string
-# PUBLIC_URL=https://your-app.up.railway.app   # optional, derived from proxy headers
-```
-
+2. Put the token and the webhook secret in `.env` (see "Credentials" above).
 3. **Local testing** (no public URL needed):
 
 ```bash
@@ -75,6 +110,20 @@ python3 telegram_polling.py
 > deletes any webhook before it starts, and connecting the webhook stops
 > polling from working.
 
+### How a customer gets their ticket
+
+| The customer sends | The bot replies with |
+|---|---|
+| Their phone number | That ticket, as a photo |
+| Their `@username` | That ticket, as a photo |
+| Their name | That ticket, as a photo |
+| A promo code | That ticket, as a photo |
+| A scanned QR code | The ticket the QR belongs to |
+
+Lookup tries the strongest match first: promo code, then phone number, then
+`@username`, then customer name. When several records match, the bot lists
+them and asks the customer to send the promo code of the one they want.
+
 ### QR codes
 
 Each record gets a unique `qr_token`. Its QR encodes a deep link of the form
@@ -82,6 +131,8 @@ Each record gets a unique `qr_token`. Its QR encodes a deep link of the form
 with that customer's ticket.
 
 - Admin panel → **QR** button shows the code for one record.
+- The Telegram panel also shows a bot-wide QR that just opens the chat, for
+  customers who do not have a ticket yet.
 - `python3 telegram_polling.py --qr output/qr` writes one PNG per record.
 
 ### Environment variables
@@ -95,6 +146,7 @@ with that customer's ticket.
 | `TELEGRAM_BOT_USERNAME` | optional | Override; resolved via `getMe` if omitted |
 | `TELEGRAM_WEBHOOK_SECRET` | for webhook | Random string, verified on every update |
 | `PUBLIC_URL` | optional | Public https base URL |
+| `PORT` | optional | Preferred port; the app moves to the next free one locally |
 | `TELEGRAM_ALLOWED_CHAT_IDS` | optional | Comma-separated allowlist; empty = anyone |
 | `TELEGRAM_DRY_RUN` | optional | `1` logs instead of sending |
 
@@ -108,11 +160,11 @@ With the app running, check the whole system end to end:
 python3 validate.py
 ```
 
-47 checks covering the local files, the record store, the ticket renderer,
-every contact-lookup variant, QR generation, the Telegram Bot API, the web
-routes (including the auth redirect and the webhook secret check) and the
-bot's replies. Exits non-zero if anything fails. It finds the running app
-on whichever port it started on.
+50 checks covering the local files, a scan for committed secrets, the record
+store, the ticket renderer, every contact-lookup variant, QR generation, the
+Telegram Bot API, the web routes (including the auth redirect and the webhook
+secret check) and the bot's replies. Exits non-zero if anything fails. It
+finds the running app on whichever port it started on.
 
 ---
 
@@ -132,6 +184,7 @@ on whichever port it started on.
 | GET | `/admin/export/csv` | admin | All records as CSV |
 | GET | `/admin/ticket/<id>` | admin | Re-download one ticket JPG |
 | GET | `/admin/qr/<id>.png` | admin | PNG of a record's QR code |
+| GET | `/admin/telegram/bot-qr.png` | admin | PNG of the bot-wide QR code |
 | POST | `/admin/send/<id>` | admin | Send a ticket to a Telegram chat |
 | GET | `/admin/telegram/status` | admin | Bot identity + webhook state |
 | POST | `/admin/telegram/connect` | admin | Register the webhook with Telegram |
@@ -145,12 +198,16 @@ on whichever port it started on.
 `Procfile` and `railway.json` are preconfigured — Railway runs
 `gunicorn app:app` and health-checks `/`.
 
-Two things to set in the dashboard:
+Set these in the dashboard:
 
+- **`SECRET_KEY`**, **`ADMIN_PASSWORD`** — no defaults, see "Credentials".
+- **`TELEGRAM_BOT_TOKEN`**, **`TELEGRAM_WEBHOOK_SECRET`** — for the bot.
+- **`PUBLIC_URL`** — the public https URL, so the webhook is registered
+  correctly.
 - **`DATA_FILE=/data/promo_records.json`** with a mounted volume at `/data`, or
   every deploy wipes your records and Telegram chat ids.
-- **`PUBLIC_URL`** set to the public https URL, so the webhook is registered
-  correctly.
+
+Then open the admin panel and click **Connect Webhook**.
 
 ---
 
@@ -162,3 +219,4 @@ Text placement lives in `ticket_core.py`:
 - `NAME_X`, `NAME_Y`, `NAME_FONT_SIZE` — the `ISSUED TO:` name line.
 
 Coordinates are measured from the top-left of the 1920×1080 template.
+
