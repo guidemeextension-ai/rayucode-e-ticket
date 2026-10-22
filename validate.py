@@ -22,10 +22,34 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-BASE = os.environ.get("VALIDATE_BASE_URL", "http://127.0.0.1:5050")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "welcom to rayu e-ticket @2026")
 
 results: list[tuple[str, bool, str]] = []
+
+
+def discover_base() -> str:
+    """Find the running app.
+
+    The server picks the next free port when 5050 is taken, so scan a small
+    range instead of assuming 5050.
+    """
+    explicit = os.environ.get("VALIDATE_BASE_URL")
+    if explicit:
+        return explicit.rstrip("/")
+
+    preferred = int(os.environ.get("PORT", 5050))
+    for port in range(preferred, preferred + 20):
+        url = f"http://127.0.0.1:{port}"
+        try:
+            r = requests.get(url, timeout=2)
+            if r.status_code == 200:
+                return url
+        except requests.RequestException:
+            continue
+    return f"http://127.0.0.1:{preferred}"
+
+
+BASE = discover_base()
 
 
 def check(name: str, ok: bool, detail: str = "") -> bool:

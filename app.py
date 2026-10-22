@@ -1,14 +1,16 @@
 """
 E-Ticket Generator Web App
 ==========================
-Run locally: python3 app.py → http://localhost:5050
+Run locally: python3 app.py → http://localhost:5050 (or the next free port)
 """
 
 import io
 import os
 import json
 import base64
+import errno
 import hmac
+import socket
 from datetime import datetime
 from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify, Response, session
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -399,10 +401,71 @@ def admin_send_ticket(record_id):
 
 # ==================== MAIN ====================
 
+def run_server(preferred: int, debug: bool, allow_shift: bool = True) -> None:
+    """Start the dev server, moving to the next port if one is taken.
+
+    `allow_shift=False` pins the app to `preferred` — required on Railway,
+    where the platform's proxy routes traffic to exactly that port.
+    """
+    from werkzeug.serving import make_server
+
+    host     = "0.0.0.0"
+    attempts = 20 if allow_shift else 1
+
+    def serve() -> None:
+        for offset in range(attempts):
+            port = preferred + offset
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+                sock.listen(64)
+            except OSError as e:
+                sock.close()
+                if e.errno not in (errno.EADDRINUSE, errno.EACCES):
+                    raise
+                if not allow_shift:
+                    raise SystemExit(
+                        f"ERROR: port {port} is required by the platform but is "
+                        "in use. Stop whatever is holding it and try again."
+                    )
+                print(f"Port {port} is in use — trying {port + 1}…")
+                continue
+
+            print(f"\n  ➜  http://localhost:{port}\n")
+            server = make_server(host, port, app, threaded=True, fd=sock.fileno())
+            if debug:
+                from werkzeug.debug import DebuggedApplication
+                server.application = DebuggedApplication(app, evalex=True)
+            try:
+                server.serve_forever()
+            except KeyboardInterrupt:
+                print("\nShutting down.")
+            finally:
+                server.server_close()
+            return
+
+        raise SystemExit(f"Could not bind a port in {preferred}..{preferred + 19}")
+
+    if debug:
+        # The reloader re-executes this script, so the socket has to be
+        # bound inside the child — not before the reloader starts.
+        from werkzeug._reloader import run_with_reloader
+        run_with_reloader(serve)
+    else:
+        serve()
+
+
 if __name__ == "__main__":
     if not TEMPLATE_PATH.is_file():
         print("ERROR: ticket_template.jpg not found!")
     else:
-        port  = int(os.environ.get("PORT", 5050))
-        debug = os.environ.get("FLASK_ENV") == "development"
-        app.run(host="0.0.0.0", port=port, debug=debug)
+        preferred = int(os.environ.get("PORT", 5050))
+        debug     = os.environ.get("FLASK_ENV") == "development"
+
+        # On Railway the platform fixes the port and its proxy routes to it,
+        # so the app must stay on exactly that one. Everywhere else, fall
+        # forward to a free port instead of refusing to start.
+        on_railway = bool(os.environ.get("RAILWAY_ENVIRONMENT")
+                          or os.environ.get("RAILWAY_PROJECT_ID"))
+        run_server(preferred, debug, allow_shift=not on_railway)

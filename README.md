@@ -31,6 +31,10 @@ Open **http://localhost:5050** — the public page generates and downloads ticke
 The admin panel is at **http://localhost:5050/admin** (password from
 `ADMIN_PASSWORD`, default is in `app.py`).
 
+If port 5050 is already taken, the app moves to the next free one (5051, 5052, …)
+and prints the URL it is using. On Railway the port is fixed by the platform,
+so the app stays on exactly that one.
+
 ### Using the admin panel
 
 1. **Create New Promo Code Ticket** — promo code and discount are required;
@@ -92,6 +96,22 @@ with that customer's ticket.
 | `PUBLIC_URL` | optional | Public https base URL |
 | `TELEGRAM_ALLOWED_CHAT_IDS` | optional | Comma-separated allowlist; empty = anyone |
 | `TELEGRAM_DRY_RUN` | optional | `1` logs instead of sending |
+
+---
+
+## Validation
+
+With the app running, check the whole system end to end:
+
+```bash
+python3 validate.py
+```
+
+47 checks covering the local files, the record store, the ticket renderer,
+every contact-lookup variant, QR generation, the Telegram Bot API, the web
+routes (including the auth redirect and the webhook secret check) and the
+bot's replies. Exits non-zero if anything fails. It finds the running app
+on whichever port it started on.
 
 ---
 
