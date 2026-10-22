@@ -537,6 +537,19 @@
       <span>Loading bot status…</span>
     </div>
 
+    <!-- Bot QR code: scan to open chat with the bot -->
+    <div id="botQrRow" style="display:none; align-items:center; gap:16px; margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+      <img id="botQrImg" alt="Scan to chat with bot" style="width:120px; height:120px; background:#fff; border-radius:10px; padding:6px; flex-shrink:0;" />
+      <div>
+        <div style="font-size:.82rem; font-weight:600; margin-bottom:4px;">Scan to Chat with Bot</div>
+        <div style="font-size:.75rem; color:var(--muted); line-height:1.45;">
+          Point your phone camera at this QR to open a chat with the bot.
+          After that, any new ticket you create can be sent directly to your Telegram.
+        </div>
+        <div id="botQrUsername" style="font-size:.75rem; margin-top:6px;"></div>
+      </div>
+    </div>
+
     <div class="tg-actions">
       <button type="button" class="btn btn-cyan" id="tgConnect">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -878,8 +891,18 @@
       if (!d.configured) {
         tgBadge.textContent = 'not configured';
         tgInfo.innerHTML = '<span>Set <code>TELEGRAM_BOT_TOKEN</code> in your environment to enable the bot.</span>';
+        document.getElementById('botQrRow').style.display = 'none';
         return;
       }
+
+      // Show the bot QR code
+      const botUsername = (d.username || '').replace(/^@/, '');
+      const qrRow = document.getElementById('botQrRow');
+      qrRow.style.display = 'flex';
+      document.getElementById('botQrImg').src = '/admin/telegram/bot-qr.png?t=' + Date.now();
+      document.getElementById('botQrUsername').innerHTML = botUsername
+        ? 'Telegram: <strong>@' + botUsername + '</strong>'
+        : '';
 
       const wh = d.webhook;
       const linked = wh && wh.url;

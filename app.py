@@ -370,6 +370,22 @@ def admin_qr(record_id):
                     headers={"Content-Disposition": f"inline; filename=qr_{record_id}.png"})
 
 
+@app.route("/admin/telegram/bot-qr.png")
+@admin_required
+def admin_bot_qr():
+    """QR code that opens the Telegram bot when scanned."""
+    import telegram_bot
+
+    if not telegram_bot.BOT_TOKEN:
+        return "Bot not configured", 404
+    try:
+        png = telegram_bot.bot_qr_png().getvalue()
+    except Exception as e:                                  # noqa: BLE001
+        return f"Error generating QR: {e}", 500
+    return Response(png, mimetype="image/png",
+                    headers={"Content-Disposition": "inline; filename=bot-qr.png"})
+
+
 @app.route("/admin/send/<record_id>", methods=["POST"])
 @admin_required
 def admin_send_ticket(record_id):

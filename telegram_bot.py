@@ -182,6 +182,25 @@ def qr_png(qr_token: str) -> io.BytesIO:
     return buf
 
 
+def bot_qr_png() -> io.BytesIO:
+    """Render a QR code that opens the bot in Telegram when scanned."""
+    import qrcode
+
+    link = f"https://t.me/{bot_username()}"
+    qr = qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(link)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
 # ==================== RECORD LOOKUP ====================
 
 def _digits(text: str) -> str:
