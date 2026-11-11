@@ -104,12 +104,14 @@ class WebhookTests(unittest.TestCase):
             delete.assert_called_once_with("one")
 
     def test_public_creation_delivery_and_backup_failure_preserves_record(self):
-        with patch.object(web, "generate_ticket", return_value=io.BytesIO(b"test")), patch.object(web, "append_record") as append, patch.object(web.record_store, "find_contact", return_value="42"), patch.object(telegram_bot, "send_ticket_to_chat", side_effect=telegram_bot.TelegramError("private")), patch.object(telegram_bot, "send_ticket_backups", side_effect=RuntimeError("private"), create=True), patch.object(telegram_bot, "BOT_USERNAME", "TestBot"), patch.object(telegram_bot, "DRY_RUN", False):
+        with patch.object(web, "generate_ticket", return_value=io.BytesIO(b"test")), patch.object(web, "append_record") as append, patch.object(web.record_store, "find_contact", return_value="42"), patch.object(telegram_bot, "send_ticket_to_chat", side_effect=telegram_bot.TelegramError("private")) as send, patch.object(telegram_bot, "send_ticket_backups", side_effect=RuntimeError("private"), create=True) as backups, patch.object(telegram_bot, "BOT_USERNAME", "TestBot"), patch.object(telegram_bot, "DRY_RUN", False):
             response = self.client.post("/generate", data={"promo_code": "TEST", "discount": "20", "telegram_username": "@Trusted"})
             self.assertEqual(response.status_code, 200)
             append.assert_called_once()
-            self.assertIn(b"Ticket saved", response.data)
-            self.assertIn(b"admin backups failed", response.data)
+            send.assert_called_once()
+            backups.assert_called_once()
+            for internal in (b"Ticket saved", b"Best-effort admin backups", b"not delivered", b"admin backups failed", b"SassdahRAK", b"President_Alien"):
+                self.assertNotIn(internal, response.data)
             self.assertNotIn(b"private", response.data.split(b"<body>", 1)[1].split(b"<form", 1)[0])
 
     def test_admin_creation_calls_backups_and_known_customer(self):
@@ -159,7 +161,11 @@ class WebhookTests(unittest.TestCase):
                     if username and route == "/admin/create":
                         self.assertIn(b"Customer delivery skipped", response.data)
                         self.assertNotIn("customer-upload", [name for name, _ in calls])
-                    self.assertIn(b"time budget", response.data)
+                    if route == "/admin/create":
+                        self.assertIn(b"time budget", response.data)
+                    else:
+                        self.assertNotIn(b"time budget", response.data)
+                        self.assertNotIn(b"Ticket saved", response.data)
 
     def test_expired_budget_makes_no_best_effort_calls(self):
         with patch.object(web.time, "monotonic", return_value=51), patch.object(web.record_store, "find_contact") as contact, patch.object(telegram_bot, "send_ticket_to_chat") as send, patch.object(web, "update_record") as metadata, patch.object(telegram_bot, "send_ticket_backups") as backups:
