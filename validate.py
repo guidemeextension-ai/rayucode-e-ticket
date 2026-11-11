@@ -5,6 +5,7 @@ Run it against a running server:
 
     python3 app.py                # in one terminal
     python3 validate.py           # in another
+    python3 validate.py --offline # local renderer/batch checks only; no store writes
 
 Checks every layer in order: local files, the record store, the ticket
 renderer, the Telegram API, the webhook endpoint, and the admin UI.
@@ -57,7 +58,8 @@ def discover_base() -> str:
     return f"http://127.0.0.1:{preferred}"
 
 
-BASE = discover_base()
+# Discovery makes HTTP requests, so defer it until online validation is selected.
+BASE = ""
 
 
 def check(name: str, ok: bool, detail: str = "") -> bool:
@@ -149,6 +151,129 @@ def test_renderer() -> None:
             check("opens as an image", im.size == (1920, 1080), f"{im.size[0]}x{im.size[1]}")
     except Exception as e:                                   # noqa: BLE001
         check("renders a ticket with a name", False, str(e))
+
+
+def test_plans_qr() -> None:
+    """Check the encoded input and actual JPEG module grid without a decoder dep."""
+    section("2b. Promotion plans QR")
+    from unittest.mock import patch
+    from urllib.parse import parse_qs, urlsplit
+
+    import qrcode
+    from PIL import Image, ImageChops
+    import ticket_core as core
+
+    # Include characters that must never become query syntax, plus Unicode.
+    cases = [
+        ("PROMO-A8K2P9", "https://rayucode.com/plans?promo=PROMO-A8K2P9"),
+        ("virak x mylove", "https://rayucode.com/plans?promo=virak%20x%20mylove"),
+        ("A+B&/?=#% café", "https://rayucode.com/plans?promo=A%2BB%26%2F%3F%3D%23%25%20caf%C3%A9"),
+    ]
+    original_add_data = qrcode.QRCode.add_data
+    tile_images = []
+    for promo, expected in cases:
+        payloads = []
+
+        def capture(qr, data, *args, **kwargs):
+            payloads.append(data)
+            return original_add_data(qr, data, *args, **kwargs)
+
+        with patch.object(qrcode.QRCode, "add_data", capture):
+            buf = core.generate_ticket(promo)
+        check(f"exact plans QR payload for {promo!r}", payloads == [expected])
+        check("plans query round-trips the entire promo",
+              parse_qs(urlsplit(expected).query) == {"promo": [promo]})
+        check("renderer returns a rewound BytesIO", isinstance(buf, io.BytesIO) and buf.tell() == 0)
+
+        # Reconstruct the expected symbol independently and sample every module
+        # center in the final compressed JPEG, including its four-module border.
+        qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,
+                           box_size=1, border=4)
+        qr.add_data(expected)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+        left, top, right, bottom = core.PLANS_QR_BOX
+        width, height = right - left, bottom - top
+        scale = min(width, height) // len(matrix)
+        ox = left + (width - len(matrix) * scale) // 2
+        oy = top + (height - len(matrix) * scale) // 2
+        with Image.open(buf) as image:
+            gray = image.convert("L")
+            matches = all(
+                (gray.getpixel((ox + x * scale + scale // 2,
+                                oy + y * scale + scale // 2)) < 128) == dark
+                for y, row in enumerate(matrix) for x, dark in enumerate(row)
+            )
+            check("JPEG QR modules and quiet zone match payload", matches)
+            tile_images.append(image.crop(core.PLANS_QR_BOX).copy())
+            outside = image.convert("RGB")
+        with Image.open(core.TEMPLATE_PATH) as source:
+            diff = ImageChops.difference(outside, source.convert("RGB"))
+        # Ignore edited regions plus JPEG's neighboring 8px blocks. Everything
+        # else must remain visually unchanged after the JPEG recompression.
+        from PIL import ImageDraw, ImageStat
+        mask = ImageDraw.Draw(diff)
+        for box in ((1576, 692, 1838, 949), (520, 840, 1400, 960)):
+            mask.rectangle(box, fill=(0, 0, 0))
+        check("template outside QR/promo stays intact", max(ImageStat.Stat(diff).mean) < 3)
+
+    check("different promotions produce different QR tiles",
+          all(ImageChops.difference(tile_images[0], tile).getbbox() is not None
+              for tile in tile_images[1:]))
+
+    with Image.open(core.generate_ticket("NAME-CHECK")) as blank, \
+            Image.open(core.generate_ticket("NAME-CHECK", "Validate Tester")) as named:
+        difference = ImageChops.difference(blank, named)
+        check("optional customer name is still rendered",
+              difference.crop((850, 560, 1450, 650)).getbbox() is not None)
+        check("customer name does not alter the plans QR",
+              difference.crop(core.PLANS_QR_BOX).getbbox() is None)
+
+
+def test_batch() -> None:
+    """Exercise the real batch entry point in a disposable output directory."""
+    section("2c. Batch renderer consistency")
+    import tempfile
+    from unittest.mock import call, patch
+    import ticket_core as core
+    import ticket_generator as batch
+
+    codes = list(batch.PROMO_CODES)
+    with tempfile.TemporaryDirectory(prefix="ticket-validation-") as tmp:
+        output = Path(tmp) / "output"
+        with patch.object(batch, "OUTPUT_DIR", output), \
+                patch.object(batch, "generate_ticket", wraps=core.generate_ticket) as render:
+            batch.main()
+        check("batch renders configured promos through shared renderer",
+              render.call_args_list == [call(code) for code in codes])
+        check("batch preserves numbered JPG filenames",
+              sorted(p.name for p in output.iterdir()) ==
+              [f"ticket_{index:03d}.jpg" for index in range(1, len(codes) + 1)])
+        for index, code in enumerate(codes, 1):
+            check(f"batch ticket {index} matches shared renderer byte-for-byte",
+                  (output / f"ticket_{index:03d}.jpg").read_bytes() ==
+                  core.generate_ticket(code).getvalue())
+
+
+def run_offline() -> None:
+    """Fail closed if any offline check attempts networking or store access."""
+    from contextlib import ExitStack
+    from unittest.mock import patch
+    import ticket_core as core
+
+    with ExitStack() as guards:
+        for target in ("socket.socket.connect", "socket.create_connection",
+                       "requests.sessions.Session.request"):
+            guards.enter_context(patch(target, side_effect=AssertionError("offline network access")))
+        for name in ("load_records", "save_records", "append_record", "update_record",
+                     "ensure_qr_tokens"):
+            guards.enter_context(patch.object(core, name,
+                                             side_effect=AssertionError("offline record-store access")))
+        for test in (test_files, test_renderer, test_plans_qr, test_batch):
+            try:
+                test()
+            except Exception as exc:
+                check(f"{test.__name__} crashed", False, str(exc))
 
 
 # ─────────────────────────── 3. RECORD STORE ───────────────────────────
@@ -363,18 +488,31 @@ def test_bot_replies() -> None:
 
 # ─────────────────────────── SUMMARY ───────────────────────────
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--offline", action="store_true",
+                        help="check local ticket/QR/batch rendering without network or store access")
+    args = parser.parse_args()
+    global BASE
+    if not args.offline:
+        BASE = discover_base()
+    results.clear()
     print("=" * 62)
     print("E-Ticket + Telegram system validation")
-    print(f"Target: {BASE}")
+    print("Mode: offline (no network or record-store access)" if args.offline else f"Target: {BASE}")
     print("=" * 62)
 
-    for test in (test_files, test_no_secrets_committed, test_renderer,
-                 test_store, test_lookup, test_qr, test_telegram_api,
-                 test_web, test_bot_replies):
-        try:
-            test()
-        except Exception as e:                               # noqa: BLE001
-            check(f"{test.__name__} crashed", False, str(e))
+    if args.offline:
+        run_offline()
+    else:
+        for test in (test_files, test_no_secrets_committed, test_renderer,
+                     test_plans_qr, test_batch, test_store, test_lookup,
+                     test_qr, test_telegram_api, test_web, test_bot_replies):
+            try:
+                test()
+            except Exception as e:                           # noqa: BLE001
+                check(f"{test.__name__} crashed", False, str(e))
 
     passed = sum(1 for _, ok, _ in results if ok)
     failed = len(results) - passed

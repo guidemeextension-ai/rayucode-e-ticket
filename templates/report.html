@@ -172,8 +172,11 @@
       td:nth-child(3)     { display: none; }
     }
   </style>
+  <link rel="stylesheet" href="{{ theme_asset_base }}/theme.css" />
+  <script src="{{ theme_asset_base }}/theme.js"></script>
 </head>
 <body>
+{% include '_theme_toggle.html' %}
 
 <nav>
   <span class="nav-brand">⚡ RAYUCODE ADMIN</span>
@@ -271,7 +274,7 @@
             <div class="action-group">
               <a href="/admin/ticket/{{ r.id }}" class="btn btn-ghost" title="Download ticket">⬇</a>
               <button class="btn btn-danger"
-                      onclick="confirmDelete('{{ r.id }}', '{{ r.promo_code }}')"
+                      onclick='confirmDelete({{ r.id|tojson }}, {{ (r.promo_code or "")|tojson }})'
                       title="Delete record">🗑</button>
             </div>
           </td>

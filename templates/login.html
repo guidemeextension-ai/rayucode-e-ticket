@@ -89,8 +89,11 @@
       margin-bottom: 16px;
     }
   </style>
+  <link rel="stylesheet" href="{{ theme_asset_base }}/theme.css" />
+  <script src="{{ theme_asset_base }}/theme.js"></script>
 </head>
 <body>
+{% include '_theme_toggle.html' %}
   <div class="login-card">
     <h1>Admin Login</h1>
     <p>Enter the admin password to continue.</p>

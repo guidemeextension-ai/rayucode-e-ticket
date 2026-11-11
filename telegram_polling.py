@@ -80,7 +80,10 @@ def main() -> int:
                 continue
 
             for update in updates:
-                offset = update["update_id"] + 1
+                uid = update.get("update_id") if isinstance(update, dict) else None
+                if isinstance(uid, bool) or not isinstance(uid, int):
+                    continue
+                offset = uid + 1
                 try:
                     log = telegram_bot.handle_update(update)
                     print(f"[{datetime_now()}] {log}")

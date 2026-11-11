@@ -1,0 +1,36 @@
+/* Reuse the existing semantic variables and preserve the original dark palette. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #080d1a; --surface: #0c1225; --card: #0f1830; --border: #344563;
+  --cyan: #00e5ff; --text: #e2e8f0; --muted: #a3b0ca;
+  --purple: #c084fc; --green: #4ade80; --red: #fca5a5; --yellow: #fbbf24;
+  --row-hover: #131f3a; --on-accent: #080d1a; --accent-end: #0099cc;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f1f5fa; --surface: #e8eef6; --card: #ffffff; --border: #bac7da;
+  --cyan: #00667a; --text: #172338; --muted: #4b5d76;
+  --purple: #7333b5; --green: #176c36; --red: #a92525; --yellow: #825200;
+  --row-hover: #edf3f9; --on-accent: #ffffff; --accent-end: #00758a;
+}
+body { background: var(--bg); color: var(--text); }
+.card { background: var(--card); border-color: var(--border); }
+.logo h1, .preview-meta strong, label .req, .disc-wrap .pct { color: var(--cyan); }
+.logo p, label, label .opt, .preview-meta, .btn-clear, .toggle-btn { color: var(--muted); }
+input[type="text"], input[type="password"], input[type="tel"], input[type="number"] {
+  background: var(--surface); color: var(--text); border-color: var(--border);
+}
+input::placeholder { color: var(--muted); opacity: 1; }
+.divider, .btn-clear { border-color: var(--border); }
+.btn-generate, .btn-primary { background: linear-gradient(135deg, var(--cyan), var(--accent-end)); color: var(--on-accent); }
+.error { color: var(--red); }
+a { color: var(--cyan); }
+.theme-toolbar { display: flex; justify-content: flex-end; padding: 10px 16px; width: 100%; position: relative; z-index: 101; background: var(--bg); }
+.theme-toggle { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; min-height: 44px; font: inherit; cursor: pointer; }
+.theme-toggle:hover { border-color: var(--cyan); }
+.theme-toggle:active { background: var(--surface); }
+.theme-toggle:disabled { opacity: .55; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--cyan) !important; outline-offset: 3px; }
+.delivery-feedback { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 16px auto; max-width: 95%; }
+.delivery-feedback a { display: inline-block; margin-left: 8px; text-decoration: underline; }
+@media (max-width: 520px) { nav { padding: 0 12px; } .nav-brand { font-size: .8rem; } .nav-links a { padding: 6px 8px; } }

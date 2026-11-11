@@ -5,4 +5,7 @@ __pycache__/
 output/
 .dist/
 promo_records.json
+# Private local Telegram contact stores.
+telegram_contacts.json
+*.contacts.json
 .rayu

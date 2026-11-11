@@ -9,16 +9,22 @@ import os
 import json
 import base64
 import errno
+import hashlib
 import hmac
 import secrets
 import socket
+import time
+import re
+from urllib.parse import urlsplit
+import record_store
+from record_store import StorageError
 from datetime import datetime
 from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify, Response, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from ticket_core import (
     TEMPLATE_PATH,
-    load_records, save_records, append_record, update_record,
+    load_records, append_record, update_record, delete_record,
     ensure_qr_tokens, new_qr_token, build_record,
     generate_ticket,
 )
@@ -38,8 +44,126 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # A missing secret key invalidates every session on restart, so it is
 # generated rather than falling back to a shared constant.
+PRODUCTION = bool(os.environ.get("VERCEL") or os.environ.get("RAILWAY_ENVIRONMENT")
+                  or os.environ.get("RAILWAY_PROJECT_ID"))
+
+
+def initialize() -> None:
+    """Fail closed on managed platforms instead of using ephemeral defaults."""
+    if not PRODUCTION:
+        return
+    required = ("SECRET_KEY", "ADMIN_PASSWORD")
+    if any(not os.environ.get(name, "").strip() for name in required):
+        raise RuntimeError("Production requires SECRET_KEY and ADMIN_PASSWORD")
+    record_store.validate_configuration()
+
+
+initialize()
 SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_urlsafe(48)
 app.secret_key = SECRET_KEY
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+                  SESSION_COOKIE_SECURE=PRODUCTION, MAX_CONTENT_LENGTH=1024 * 1024)
+
+
+@app.errorhandler(StorageError)
+def storage_unavailable(error):
+    return "Storage is temporarily unavailable. Please retry later.", 503
+
+
+@app.context_processor
+def theme_assets():
+    return {"theme_asset_base": "/static"}
+
+
+def _bot_start_link() -> str:
+    """Public bot link, or "" when the username cannot be resolved safely."""
+    import telegram_bot
+
+    name = (telegram_bot.BOT_USERNAME or "").strip().lstrip("@")
+    if re.fullmatch(r"[A-Za-z0-9_]{1,64}", name):
+        return f"https://t.me/{name}"
+    return ""
+
+
+# Conservative wall-clock envelopes: Redis connect+read, Telegram upload.
+CREATION_BUDGET = 50
+STORAGE_STAGE_BUDGET = 13
+UPLOAD_STAGE_BUDGET = 11
+
+
+def creation_feedback(record, *, deadline):
+    """A saved ticket remains created even if either delivery service fails."""
+    import telegram_bot
+    feedback = delivery_feedback(record, deadline=deadline)
+    if deadline - time.monotonic() < STORAGE_STAGE_BUDGET + UPLOAD_STAGE_BUDGET:
+        feedback["backup_error"] = "Ticket saved. Admin backups skipped because the request delivery time budget is insufficient."
+        return feedback
+    try:
+        feedback["backup_results"] = telegram_bot.send_ticket_backups(record, deadline=deadline)
+    except Exception:
+        feedback["backup_error"] = "Ticket saved, but admin backups failed or could not be confirmed."
+    return feedback
+
+
+def delivery_feedback(record, *, deadline=None):
+    """Report create-time delivery honestly; never trust a form chat id."""
+    import telegram_bot
+
+    if deadline is None:
+        deadline = time.monotonic() + CREATION_BUDGET
+    username = (record.get("telegram_username") or "").strip()
+    if not username:
+        return {}
+
+    start_link = _bot_start_link()
+    feedback = {
+        "delivery_status": "Ticket saved. It was not sent because this Telegram user "
+                           "has not started the bot yet.",
+        "delivery_ok": False,
+    }
+    if start_link:
+        feedback["start_link"] = start_link
+    if not telegram_bot.BOT_TOKEN:
+        feedback["delivery_status"] = "Ticket saved. Telegram is not configured; nothing was delivered."
+        return feedback
+    if deadline - time.monotonic() < 2 * STORAGE_STAGE_BUDGET + UPLOAD_STAGE_BUDGET:
+        feedback["delivery_status"] = "Ticket saved. Customer delivery skipped because the request delivery time budget is insufficient; nothing was sent."
+        return feedback
+    try:
+        chat_id = record_store.find_contact(username)
+    except Exception:                                        # noqa: BLE001
+        feedback["delivery_status"] = ("Ticket saved. Telegram delivery could not be "
+                                       "checked; use the bot link to send it.")
+        return feedback
+    if not chat_id:
+        return feedback
+    if telegram_bot.DRY_RUN:
+        feedback["delivery_status"] = ("Ticket saved. Telegram dry run is on, so "
+                                       "nothing was sent.")
+        return feedback
+    if deadline - time.monotonic() < UPLOAD_STAGE_BUDGET + STORAGE_STAGE_BUDGET:
+        feedback["delivery_status"] = "Ticket saved. Customer upload skipped because the request delivery time budget is insufficient; nothing was sent."
+        return feedback
+    try:
+        sent = telegram_bot.send_ticket_to_chat(chat_id, record)
+    except Exception:                                        # noqa: BLE001
+        sent = False
+    if sent is not True:
+        feedback["delivery_status"] = ("Ticket saved, but sending it to Telegram failed. "
+                                       "Use the bot link to retry.")
+        return feedback
+    feedback["delivery_status"] = "Ticket saved and sent to the customer's Telegram chat."
+    feedback["delivery_ok"] = True
+    if deadline - time.monotonic() < STORAGE_STAGE_BUDGET:
+        feedback["delivery_status"] = "Ticket sent, but delivery tracking skipped because the request time budget is insufficient. Do not resend automatically."
+        return feedback
+    try:
+        update_record(record["id"], telegram_chat_id=str(chat_id),
+                      telegram_sent_at=datetime.now().isoformat(timespec="seconds"))
+    except StorageError:
+        feedback["delivery_status"] = ("Ticket sent, but the delivery details could "
+                                       "not be saved.")
+    return feedback
 
 # The admin password is never given a hardcoded fallback: this repository is
 # public, so any default here would be a published password. Local runs get
@@ -61,7 +185,8 @@ if not ADMIN_PASSWORD:
 def admin_login():
     if request.method == "POST":
         password = request.form.get("password", "")
-        if password == ADMIN_PASSWORD:
+        if hmac.compare_digest(password.encode(), ADMIN_PASSWORD.encode()):
+            session.clear()
             session["admin_logged_in"] = True
             return redirect(url_for("admin"))
         return render_template("login.html", error="Incorrect password.")
@@ -94,6 +219,7 @@ def index():
 
 @app.route("/generate", methods=["POST"])
 def generate():
+    deadline = time.monotonic() + CREATION_BUDGET
     code          = request.form.get("promo_code", "").strip().upper()
     customer_name = request.form.get("customer_name", "").strip()
     phone         = request.form.get("phone", "").strip()
@@ -102,21 +228,25 @@ def generate():
     if not code:
         return render_template("index.html", error="Please enter a promotion code.")
     try:
+        discount_val = float(discount)
+        if not 0 <= discount_val <= 100:
+            raise ValueError
+    except ValueError:
+        return render_template("index.html", error="Discount must be a number between 0 and 100.")
+    try:
         img_io     = generate_ticket(code, customer_name)
         img_base64 = base64.b64encode(img_io.getvalue()).decode("utf-8")
 
-        # Save record to JSON store
-        try:
-            discount_val = float(discount) if discount else 0.0
-        except ValueError:
-            discount_val = 0.0
-
-        record = build_record(code, customer_name, phone, discount_val)
+        record = build_record(code, customer_name, phone, discount_val,
+                              telegram_username=request.form.get("telegram_username", "").strip())
         append_record(record)
         return render_template("index.html", ticket_image=img_base64,
-                               promo_code=code, customer_name=customer_name)
-    except Exception as e:
-        return render_template("index.html", error=f"Error: {e}")
+                               promo_code=code, customer_name=customer_name,
+                               **creation_feedback(record, deadline=deadline))
+    except StorageError:
+        raise
+    except Exception:
+        return render_template("index.html", error="Ticket generation failed. Please check the details and retry.")
 
 
 @app.route("/download", methods=["POST"])
@@ -129,8 +259,8 @@ def download():
         img_io = generate_ticket(code, customer_name)
         return send_file(img_io, mimetype="image/jpeg",
                          as_attachment=True, download_name=f"ticket_{code}.jpg")
-    except Exception as e:
-        return render_template("index.html", error=f"Error: {e}")
+    except Exception:
+        return render_template("index.html", error="Ticket download failed. Please retry later.")
 
 
 # ==================== ADMIN ROUTES ====================
@@ -147,6 +277,7 @@ def admin():
 @admin_required
 def admin_create():
     """Create a new promo code record and generate the ticket."""
+    deadline = time.monotonic() + CREATION_BUDGET
     customer_name = request.form.get("customer_name", "").strip()
     phone         = request.form.get("phone", "").strip()
     discount      = request.form.get("discount", "").strip()
@@ -182,13 +313,17 @@ def admin_create():
     except Exception:
         img_base64 = None
 
-    records = ensure_qr_tokens(load_records())
+    # Use the pre-creation snapshot plus the saved record. Backfilling legacy
+    # tokens is left to the normal admin GET, never a late unbounded write loop.
+    records = [*records, record]
+    feedback = creation_feedback(record, deadline=deadline)
     return render_template("admin.html",
                            success=f"Ticket created for code: {promo_code}",
                            ticket_image=img_base64,
                            promo_code=promo_code,
                            record_id=record["id"],
-                           total=len(records), records=records)
+                           total=len(records), records=records,
+                           **feedback)
 
 
 # ==================== REPORT ROUTES ====================
@@ -204,9 +339,7 @@ def admin_report():
 @admin_required
 def admin_delete(record_id):
     """Delete a single promo record by ID."""
-    records = load_records()
-    records = [r for r in records if r.get("id") != record_id]
-    save_records(records)
+    delete_record(record_id)
     return redirect(url_for("admin_report"))
 
 
@@ -261,11 +394,49 @@ def admin_ticket_download(record_id):
         img_io = generate_ticket(record["promo_code"], record.get("customer_name") or "")
         return send_file(img_io, mimetype="image/jpeg", as_attachment=True,
                          download_name=f"ticket_{record['promo_code']}.jpg")
-    except Exception as e:
-        return f"Error generating ticket: {e}", 500
+    except Exception:
+        return "Ticket generation failed", 500
 
 
 # ==================== TELEGRAM ROUTES ====================
+
+def _bot_identity() -> str:
+    """Stable lease key; never expose the bot token."""
+    import telegram_bot
+
+    username = (telegram_bot.BOT_USERNAME or "").strip()
+    if username:
+        return username
+    token = telegram_bot.BOT_TOKEN or ""
+    if token:
+        return hashlib.sha256(token.encode()).hexdigest()
+    return "eticket"
+
+
+def _remember_contact(update: dict) -> None:
+    """Remember a username only after the bot handled a private message."""
+    message = update.get("message")
+    if not isinstance(message, dict):
+        return
+    chat   = message.get("chat")
+    sender = message.get("from")
+    if not isinstance(chat, dict) or not isinstance(sender, dict):
+        return
+    username = sender.get("username")
+    if chat.get("type") != "private":
+        return
+    if not isinstance(username, str) or not username.strip():
+        return
+    if (type(sender.get("id")) is not int or type(chat.get("id")) is not int
+            or sender["id"] != chat["id"] or chat["id"] <= 0 or sender.get("is_bot")):
+        return
+    try:
+        record_store.remember_contact(username, str(chat["id"]))
+    except StorageError:
+        # The ticket may already be delivered; a contact-book write failure
+        # must not turn into a webhook error that makes Telegram resend it.
+        print("[telegram] contact memory write failed")
+
 
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook():
@@ -277,17 +448,60 @@ def telegram_webhook():
     import telegram_bot
 
     secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
-    if secret:
-        sent = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-        if not hmac.compare_digest(sent, secret):
-            return "Forbidden", 403
+    if not secret or not telegram_bot.BOT_TOKEN:
+        return "Webhook is not configured", 503
+    sent = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not hmac.compare_digest(sent.encode(), secret.encode()):
+        return "Forbidden", 403
 
-    update = request.get_json(silent=True) or {}
+    update = request.get_json(silent=True)
+    if not isinstance(update, dict):
+        return "Invalid update", 400
+    update_id = update.get("update_id")
+    if type(update_id) is not int or update_id < 0:
+        return "Invalid update", 400
+    message = update.get("message")
+    if message is not None:
+        if not isinstance(message, dict):
+            return "Invalid message", 400
+        if (not isinstance(message.get("chat"), dict)
+                or type(message["chat"].get("id")) is not int
+                or not isinstance(message.get("from", {}), dict)
+                or ("text" in message and not isinstance(message["text"], str))):
+            return "Invalid message", 400
+
+    owner = secrets.token_urlsafe(24)
+    bot_id = _bot_identity()
     try:
-        log = telegram_bot.handle_update(update)
-        print(f"[telegram] {log}")
-    except Exception as e:                                  # noqa: BLE001
-        print(f"[telegram] error: {e}")
+        state = record_store.acquire_update(bot_id, update_id, owner)
+    except StorageError:
+        return "Storage is temporarily unavailable. Please retry later.", 503
+    if state == "completed":
+        return "", 200
+    if state == "processing":
+        return "Update is processing", 503, {"Retry-After": "5"}
+    if state != "acquired":
+        return "Storage is temporarily unavailable. Please retry later.", 503
+
+    try:
+        if message is not None:
+            telegram_bot.handle_update(update)
+            _remember_contact(update)
+    except Exception:                                        # noqa: BLE001
+        try:
+            record_store.release_update(bot_id, update_id, owner)
+        except StorageError:
+            return "Storage is temporarily unavailable. Please retry later.", 503
+        print("[telegram] update handler failed")
+        return "", 500
+
+    try:
+        record_store.complete_update(bot_id, update_id, owner)
+    except StorageError:
+        # The ticket was already delivered; returning 503 would make Telegram
+        # resend this update and duplicate the delivery.
+        print("[telegram] update completion could not be recorded")
+
     return "", 200
 
 
@@ -313,11 +527,11 @@ def admin_telegram_status():
             status["webhook"] = {
                 "url":                    info.get("url", ""),
                 "pending_update_count":   info.get("pending_update_count", 0),
-                "last_error_message":     info.get("last_error_message", ""),
+                "last_error_message":     "Telegram reported a webhook error." if info.get("last_error_message") else "",
                 "has_custom_certificate": info.get("has_custom_certificate", False),
             }
         except Exception as e:                              # noqa: BLE001
-            status["error"] = str(e)
+            status["error"] = "Telegram status is temporarily unavailable."
     return jsonify(status)
 
 
@@ -337,7 +551,9 @@ def admin_telegram_connect():
     base = os.environ.get("PUBLIC_URL", "").rstrip("/") or request.url_root.rstrip("/")
     url  = f"{base}/telegram/webhook"
 
-    if not url.startswith("https://"):
+    parsed = urlsplit(base)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username
+            or parsed.password or parsed.query or parsed.fragment or parsed.path not in ("", "/")):
         return jsonify({
             "ok": False,
             "error": f"Telegram requires an HTTPS URL, but this deployment is at {base}. "
@@ -348,7 +564,7 @@ def admin_telegram_connect():
     try:
         telegram_bot.set_webhook(url, secret)
     except Exception as e:                                  # noqa: BLE001
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": "Telegram operation failed or could not be confirmed."}), 503
 
     return jsonify({"ok": True, "url": url})
 
@@ -362,7 +578,7 @@ def admin_telegram_disconnect():
     try:
         telegram_bot.delete_webhook()
     except Exception as e:                                  # noqa: BLE001
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": "Telegram operation failed or could not be confirmed."}), 503
     return jsonify({"ok": True})
 
 
@@ -379,8 +595,8 @@ def admin_qr(record_id):
         record = update_record(record_id, qr_token=new_qr_token()) or record
     try:
         png = telegram_bot.qr_png(record["qr_token"]).getvalue()
-    except Exception as e:                                  # noqa: BLE001
-        return f"Error generating QR: {e}", 500
+    except Exception:                                       # noqa: BLE001
+        return "QR generation failed", 500
     return Response(png, mimetype="image/png",
                     headers={"Content-Disposition": f"inline; filename=qr_{record_id}.png"})
 
@@ -395,8 +611,8 @@ def admin_bot_qr():
         return "Bot not configured", 404
     try:
         png = telegram_bot.bot_qr_png().getvalue()
-    except Exception as e:                                  # noqa: BLE001
-        return f"Error generating QR: {e}", 500
+    except Exception:                                       # noqa: BLE001
+        return "QR generation failed", 500
     return Response(png, mimetype="image/png",
                     headers={"Content-Disposition": "inline; filename=bot-qr.png"})
 
@@ -419,10 +635,13 @@ def admin_send_ticket(record_id):
                      "first, or paste a chat id here.",
         }), 400
 
+    if telegram_bot.DRY_RUN:
+        return jsonify({"ok": False, "error": "Dry run enabled; ticket was not delivered."}), 400
     try:
-        telegram_bot.send_ticket_to_chat(chat_id, record)
+        if telegram_bot.send_ticket_to_chat(chat_id, record) is not True:
+            raise telegram_bot.TelegramError("Delivery not confirmed")
     except Exception as e:                                  # noqa: BLE001
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": "Telegram operation failed or could not be confirmed."}), 503
 
     update_record(record_id,
                   telegram_chat_id=str(chat_id),

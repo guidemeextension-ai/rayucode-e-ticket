@@ -18,8 +18,11 @@ Config (env vars):
   PUBLIC_URL                optional — public base URL, else derived per request
   TELEGRAM_ALLOWED_CHAT_IDS optional — comma-separated allowlist, empty = anyone
   TELEGRAM_DRY_RUN          optional — "1" logs instead of sending
+  TELEGRAM_BACKUP_USERNAMES optional — default President_Alien,SassdahRAK;
+                           blank disables ticket backups
 """
 
+import html
 import io
 import os
 import re
@@ -28,6 +31,7 @@ from datetime import datetime
 
 import requests
 
+import record_store
 from ticket_core import generate_ticket, load_records, update_record
 
 # -------------------- SETTINGS --------------------
@@ -39,37 +43,71 @@ PUBLIC_URL    = os.environ.get("PUBLIC_URL", "").rstrip("/")
 DRY_RUN       = os.environ.get("TELEGRAM_DRY_RUN", "") == "1"
 
 API_BASE = "https://api.telegram.org"
-TIMEOUT  = 30
-# Photo uploads are ~390 KB and occasionally stall for a minute on a bad
-# network hop, so they get a longer budget than the small JSON calls.
-UPLOAD_TIMEOUT = 120
-# How many times to retry a failed upload before giving up.
-UPLOAD_RETRIES = 3
+CONNECT_TIMEOUT = 5
+TIMEOUT = 15
+UPLOAD_CONNECT_TIMEOUT = 3
+UPLOAD_TIMEOUT = 8
+BACKUP_BUDGET = 48
+BACKUP_CONTACT_BUDGET = 13
+POLL_TIMEOUT_MARGIN = 5
 
 # Per-chat lookup throttle: max LOOKUP_LIMIT lookups per LOOKUP_WINDOW seconds.
 LOOKUP_LIMIT  = 10
 LOOKUP_WINDOW = 300
-_lookups: dict[str, list[float]] = {}
+# Hard cap on tracked chats so unique chat ids cannot grow memory unbounded.
+MAX_LOOKUP_CHATS = 4096
+_lookups: dict = {}
 
 _username_cache: tuple[str, float] | None = None
 # --------------------------------------------------
 
 
 class TelegramError(Exception):
-    """Raised when the Telegram API returns ok=false."""
+    """Sanitized Telegram transport, response, or configuration failure."""
 
 
 # ==================== API CLIENT ====================
 
-def _api(method: str, **params):
-    """Call a Telegram Bot API method with query-string params."""
+def _request(method: str, read_timeout: int, **kwargs):
+    """Make one request; never expose token URLs or untrusted response bodies."""
     if not BOT_TOKEN:
         raise TelegramError("TELEGRAM_BOT_TOKEN is not set")
-    resp = requests.get(f"{API_BASE}/bot{BOT_TOKEN}/{method}", params=params, timeout=TIMEOUT)
-    data = resp.json()
-    if not data.get("ok"):
-        raise TelegramError(data.get("description", "Telegram API error"))
+    try:
+        resp = requests.post(
+            f"{API_BASE}/bot{BOT_TOKEN}/{method}",
+            timeout=(UPLOAD_CONNECT_TIMEOUT if method == "sendPhoto" else CONNECT_TIMEOUT,
+                     read_timeout),
+            allow_redirects=False,
+            **kwargs,
+        )
+        resp.raise_for_status()
+    except requests.RequestException:
+        raise TelegramError("Telegram request failed") from None
+    try:
+        data = resp.json()
+    except ValueError:
+        raise TelegramError("Telegram returned invalid JSON") from None
+    if not isinstance(data, dict) or not isinstance(data.get("ok"), bool):
+        raise TelegramError("Telegram returned an invalid response")
+    if not data["ok"]:
+        raise TelegramError("Telegram API rejected the request")
+    if "result" not in data:
+        raise TelegramError("Telegram returned an invalid response")
     return data["result"]
+
+
+def _api(method: str, **params):
+    """POST JSON, preserving booleans/lists and allowing long-poll waits."""
+    read_timeout = TIMEOUT
+    if method == "getUpdates":
+        try:
+            poll_timeout = int(params.get("timeout", 0))
+        except (TypeError, ValueError, OverflowError):
+            raise TelegramError("Invalid polling timeout") from None
+        if not 0 <= poll_timeout <= 50:
+            raise TelegramError("Polling timeout must be between 0 and 50 seconds")
+        read_timeout = max(TIMEOUT, poll_timeout + POLL_TIMEOUT_MARGIN)
+    return _request(method, read_timeout, json=params)
 
 
 def get_me() -> dict:
@@ -93,12 +131,12 @@ def bot_username() -> str:
 def set_webhook(url: str, secret: str) -> dict:
     """Point Telegram at our webhook endpoint."""
     return _api("setWebhook", url=url, secret_token=secret,
-                allowed_updates=["message"], drop_pending_updates="true")
+                allowed_updates=["message"], drop_pending_updates=False)
 
 
 def delete_webhook() -> dict:
     """Remove the webhook so getUpdates polling can take over."""
-    return _api("deleteWebhook", drop_pending_updates="true")
+    return _api("deleteWebhook", drop_pending_updates=False)
 
 
 def get_webhook_info() -> dict:
@@ -110,51 +148,97 @@ def send_message(chat_id: str, text: str) -> dict:
     if DRY_RUN:
         print(f"[dry-run] sendMessage -> {chat_id}: {text}")
         return {"ok": True, "dry_run": True}
-    resp = requests.post(
-        f"{API_BASE}/bot{BOT_TOKEN}/sendMessage",
-        data={"chat_id": str(chat_id), "text": text, "parse_mode": "HTML"},
-        timeout=TIMEOUT,
-    )
-    data = resp.json()
-    if not data.get("ok"):
-        raise TelegramError(data.get("description", "sendMessage failed"))
-    return data["result"]
+    return _api("sendMessage", chat_id=str(chat_id), text=text, parse_mode="HTML")
 
 
 def send_photo(chat_id: str, photo: bytes, filename: str = "ticket.jpg",
-               caption: str = "") -> dict:
-    """Send a JPEG as a photo (multipart upload).
-
-    Uploads can stall for a minute on a bad network hop, so this retries
-    a few times before giving up — a customer should not be left without
-    their ticket because of one flaky request.
-    """
+               caption: str = "", parse_mode: str | None = None) -> dict:
+    """Send a JPEG in one bounded attempt; retries risk duplicate delivery."""
     if DRY_RUN:
         print(f"[dry-run] sendPhoto -> {chat_id}: {filename} ({len(photo)} bytes) {caption}")
         return {"ok": True, "dry_run": True}
     payload = {"chat_id": str(chat_id)}
     if caption:
         payload["caption"] = caption
+    if parse_mode is not None:
+        payload["parse_mode"] = parse_mode
 
-    last_error = None
-    for attempt in range(1, UPLOAD_RETRIES + 1):
+    return _request(
+        "sendPhoto", UPLOAD_TIMEOUT, data=payload,
+        files={"photo": (filename, photo, "image/jpeg")},
+    )
+
+
+def send_ticket_backups(record: dict, *, deadline: float | None = None) -> list[dict]:
+    """Send ticket-only backups to configured, previously observed private chats.
+
+    No customer delivery metadata is changed. Each recipient is independent;
+    dry-run is reported as unavailable, never as an actual delivery. The
+    optional absolute monotonic deadline is capped by a local 48-second budget.
+    Requests timeouts are inactivity bounds, not strict wall-clock guarantees.
+    """
+    configured = os.environ.get(
+        "TELEGRAM_BACKUP_USERNAMES", "President_Alien,SassdahRAK"
+    )
+    usernames = []
+    seen = set()
+    for value in configured.split(","):
+        username = value.strip().lstrip("@")
+        if username and username.casefold() not in seen:
+            usernames.append(username)
+            seen.add(username.casefold())
+    results = []
+    local_deadline = time.monotonic() + BACKUP_BUDGET
+    deadline = local_deadline if deadline is None else min(local_deadline, deadline)
+    photo = None
+    # Plain text, no parse_mode. Bound each field in UTF-16 units, which
+    # Telegram uses for caption limits, including astral Unicode characters.
+    def field(value):
+        text = str(value if value is not None else "")
+        return text.encode("utf-16-le", errors="replace")[:240].decode(
+            "utf-16-le", errors="ignore"
+        )
+
+    caption = "Ticket creation backup\n" + "\n".join(
+        f"{label}: {field(record.get(key))}"
+        for label, key in (
+            ("Code", "promo_code"), ("Customer", "customer_name"),
+            ("Phone", "phone"), ("Discount (%)", "discount"),
+            ("Created at", "created_at"),
+        )
+    )
+    for username in usernames:
+        result = {"username": username, "status": "failed"}
+        results.append(result)
+        if DRY_RUN:
+            result.update(status="unavailable", error="Dry-run: backup not sent")
+            continue
         try:
-            resp = requests.post(
-                f"{API_BASE}/bot{BOT_TOKEN}/sendPhoto",
-                data=payload,
-                files={"photo": (filename, photo, "image/jpeg")},
-                timeout=UPLOAD_TIMEOUT,
-            )
-            data = resp.json()
-            if not data.get("ok"):
-                raise TelegramError(data.get("description", "sendPhoto failed"))
-            return data["result"]
-        except (requests.RequestException, ValueError) as e:
-            last_error = e
-            print(f"[telegram] upload attempt {attempt}/{UPLOAD_RETRIES} failed: {e}")
-            if attempt < UPLOAD_RETRIES:
-                time.sleep(2 * attempt)
-    raise TelegramError(f"sendPhoto failed after {UPLOAD_RETRIES} attempts: {last_error}")
+            if deadline - time.monotonic() < (
+                BACKUP_CONTACT_BUDGET + UPLOAD_CONNECT_TIMEOUT + UPLOAD_TIMEOUT
+            ):
+                result.update(status="unavailable", error="Backup time budget exhausted")
+                continue
+            chat_id = record_store.find_contact(username)
+            if not chat_id:
+                result.update(status="unavailable", error="No bot-known private contact")
+                continue
+            if photo is None:
+                photo = generate_ticket(
+                    record.get("promo_code", ""), record.get("customer_name") or ""
+                ).getvalue()
+            if deadline - time.monotonic() < UPLOAD_CONNECT_TIMEOUT + UPLOAD_TIMEOUT:
+                result.update(status="unavailable", error="Backup time budget exhausted")
+                continue
+            sent = send_photo(chat_id, photo, filename="ticket-backup.jpg", caption=caption)
+            if isinstance(sent, dict) and sent.get("dry_run"):
+                result.update(status="unavailable", error="Dry-run: backup not sent")
+            else:
+                result["status"] = "sent"
+        except Exception:
+            # Storage/renderer errors may contain credentials too: never echo them.
+            result["error"] = "Ticket backup failed"
+    return results
 
 
 # ==================== QR CODES ====================
@@ -285,10 +369,19 @@ def find_record_by_token(qr_token: str) -> dict | None:
 
 def _too_many_lookups(chat_id: str) -> bool:
     now = time.time()
+    # Bound memory: drop chats whose whole window has gone stale, then hard-cap
+    # the table by evicting the least recently active chat.
+    if len(_lookups) > MAX_LOOKUP_CHATS:
+        for key in [k for k, hits in _lookups.items()
+                    if not any(now - t < LOOKUP_WINDOW for t in hits)]:
+            del _lookups[key]
     hits = [t for t in _lookups.get(chat_id, []) if now - t < LOOKUP_WINDOW]
     if len(hits) >= LOOKUP_LIMIT:
         _lookups[chat_id] = hits
         return True
+    if chat_id not in _lookups and len(_lookups) >= MAX_LOOKUP_CHATS:
+        oldest = min(_lookups, key=lambda k: _lookups[k][-1] if _lookups[k] else 0)
+        del _lookups[oldest]
     hits.append(now)
     _lookups[chat_id] = hits
     return False
@@ -310,15 +403,30 @@ HELP = (
     "Your ticket is sent as a photo — save it to your phone."
 )
 
+RATE_LIMITED = "⏳ Too many lookups. Please wait a few minutes."
+
+
+def _discount_text(value) -> str:
+    """Format a discount for an HTML caption without ever raising."""
+    try:
+        return f"{float(value):g}"
+    except (TypeError, ValueError):
+        return html.escape(str(value))[:32]
+
+
+def _safe_filename(value) -> str:
+    """Strip characters that could break multipart headers."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "")).strip("._-")[:64] or "ticket"
+
 
 def ticket_caption(record: dict) -> str:
-    """Caption shown under the ticket photo."""
+    """Caption shown under the ticket photo (HTML parse mode)."""
     lines = ["🎫 <b>Your E-Ticket</b>", ""]
-    lines.append(f"Code: <b>{record.get('promo_code', '')}</b>")
+    lines.append(f"Code: <b>{html.escape(str(record.get('promo_code', '')))}</b>")
     if record.get("discount") is not None:
-        lines.append(f"Discount: <b>{record['discount']:g}%</b>")
+        lines.append(f"Discount: <b>{_discount_text(record['discount'])}%</b>")
     if record.get("customer_name"):
-        lines.append(f"Issued to: {record['customer_name']}")
+        lines.append(f"Issued to: {html.escape(str(record['customer_name']))}")
     lines.append("")
     lines.append("✅ Saved — show this at the counter.")
     return "\n".join(lines)
@@ -330,14 +438,23 @@ def send_ticket_to_chat(chat_id: str, record: dict) -> bool:
         record.get("promo_code", ""),
         record.get("customer_name") or "",
     ).getvalue()
-    send_photo(chat_id, photo, filename=f"ticket_{record.get('promo_code', 'e')}.jpg",
-               caption=ticket_caption(record))
+    send_photo(
+        chat_id, photo,
+        filename=f"ticket_{_safe_filename(record.get('promo_code'))}.jpg",
+        caption=ticket_caption(record),
+        parse_mode="HTML",
+    )
     return True
 
 
 def _remember_chat(record: dict, chat_id: str, chat_name: str,
                    username: str = "") -> None:
-    """Store the customer's Telegram chat on their record."""
+    """Store the customer's Telegram chat on their record.
+
+    The ticket photo has already been delivered by the time this runs, so a
+    storage failure here must never bubble out and make Telegram retry the
+    update (which would resend the ticket).
+    """
     if DRY_RUN:
         return
     fields = {
@@ -347,19 +464,30 @@ def _remember_chat(record: dict, chat_id: str, chat_name: str,
     }
     if username:
         fields["telegram_username"] = username
-    update_record(record["id"], **fields)
+    try:
+        update_record(record["id"], **fields)
+    except record_store.StorageError:
+        print("ticket delivered, but delivery metadata could not be saved")
 
 
 # ==================== UPDATE HANDLER ====================
 
 def handle_update(update: dict) -> str:
     """Handle one Telegram update. Returns a short log line."""
-    message = update.get("message") or update.get("edited_message")
+    message = update.get("message")
     if not message:
         return "ignored: no message"
 
     chat       = message.get("chat") or {}
     chat_id    = chat.get("id")
+    if isinstance(chat_id, bool) or not isinstance(chat_id, int):
+        return "ignored: no chat id"
+    # Tickets are private: never look up or send one into a group/channel,
+    # where it would leak to everyone and overwrite the stored customer chat.
+    if chat.get("type", "private") != "private":
+        send_message(chat_id, "🔒 Please message me privately to receive your ticket.")
+        return f"ignored: non-private chat {chat_id}"
+
     chat_name  = " ".join(filter(None, [chat.get("first_name"), chat.get("last_name")]))
     username   = (chat.get("username") or "")
     text       = (message.get("text") or "").strip()
@@ -376,16 +504,20 @@ def handle_update(update: dict) -> str:
                               "or scan the QR code on your voucher.")
         return f"non-text from {chat_id}"
 
-    # ── /start with a QR token ──
+    # ── /start without a token: static welcome, never rate-limited ──
     if text.startswith("/start"):
-        parts   = text.split(maxsplit=1)
-        token   = parts[1].strip() if len(parts) > 1 else ""
-        record  = find_record_by_token(token) if token else None
-
+        parts = text.split(maxsplit=1)
+        token = parts[1].strip() if len(parts) > 1 else ""
         if not token:
             send_message(chat_id, WELCOME)
             return f"/start from {chat_id}"
 
+        # ── /start <QR token>: a full record scan, so it shares the throttle ──
+        if _too_many_lookups(chat_id):
+            send_message(chat_id, RATE_LIMITED)
+            return f"rate limited {chat_id}"
+
+        record = find_record_by_token(token)
         if not record:
             send_message(chat_id, "❌ This QR code isn't valid any more. "
                                   "Please ask staff for a new one.")
@@ -395,10 +527,15 @@ def handle_update(update: dict) -> str:
         _remember_chat(record, chat_id, chat_name or username, username)
         return f"sent ticket {record.get('promo_code')} to {chat_id}"
 
-    # ── /help ──
+    # ── /help: static reply, never rate-limited ──
     if text.startswith("/help"):
         send_message(chat_id, HELP)
         return f"/help from {chat_id}"
+
+    # ── Throttle every remaining lookup path (promo code / name / phone) ──
+    if _too_many_lookups(chat_id):
+        send_message(chat_id, RATE_LIMITED)
+        return f"rate limited {chat_id}"
 
     # ── The customer typed their promo code (disambiguating multiple hits) ──
     records = load_records()
@@ -411,14 +548,10 @@ def handle_update(update: dict) -> str:
         return f"sent ticket by code {record.get('promo_code')} to {chat_id}"
 
     # ── Name / phone / @username lookup ──
-    if _too_many_lookups(chat_id):
-        send_message(chat_id, "⏳ Too many lookups. Please wait a few minutes.")
-        return f"rate limited {chat_id}"
-
     hits = find_records_by_contact(text)
     if not hits:
         send_message(chat_id,
-                     f"❌ I couldn't find a ticket for <b>{text}</b>.\n\n"
+                     f"❌ I couldn't find a ticket for <b>{html.escape(text)}</b>.\n\n"
                      "Please check the spelling, or scan the QR code on your voucher.")
         return f"no match for {text!r} from {chat_id}"
 
@@ -429,11 +562,12 @@ def handle_update(update: dict) -> str:
         return f"sent ticket {record.get('promo_code')} to {chat_id}"
 
     # Several tickets — ask for the promo code
-    lines = [f"🔎 I found <b>{len(hits)}</b> tickets matching <b>{text}</b>.",
+    lines = [f"🔎 I found <b>{len(hits)}</b> tickets matching "
+             f"<b>{html.escape(text)}</b>.",
              "", "Please send the promo code of the one you want:"]
     for r in hits[:10]:
-        lines.append(f"• <code>{r.get('promo_code', '')}</code> — "
-                     f"{r.get('customer_name') or 'no name'} "
-                     f"({r.get('discount', 0):g}%)")
+        lines.append(f"• <code>{html.escape(str(r.get('promo_code', '')))}</code> — "
+                     f"{html.escape(str(r.get('customer_name') or 'no name'))} "
+                     f"({_discount_text(r.get('discount', 0))}%)")
     send_message(chat_id, "\n".join(lines))
     return f"{len(hits)} matches for {text!r} from {chat_id}"

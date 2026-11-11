@@ -1,0 +1,21 @@
+{% if delivery_status %}
+<div class="delivery-feedback" role="status">
+  {{ delivery_status }}
+  {% if start_link %}<a href="{{ start_link }}" target="_blank" rel="noopener noreferrer">Open ticket in Telegram</a>{% endif %}
+</div>
+{% endif %}
+{% if backup_error %}<div class="delivery-feedback" role="status">{{ backup_error }}</div>{% endif %}
+{% if backup_results %}
+<div class="delivery-feedback" role="status">
+  <strong>Best-effort admin backups</strong>
+  <ul>
+  {% for result in backup_results %}
+    <li>@{{ result.username }}:
+      {% if result.status == 'sent' %}sent
+      {% elif result.status == 'unavailable' %}not delivered{% if result.error %} — {{ result.error }}{% endif %}
+      {% else %}failed or not confirmed{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
