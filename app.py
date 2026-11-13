@@ -45,7 +45,8 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 # A missing secret key invalidates every session on restart, so it is
 # generated rather than falling back to a shared constant.
 PRODUCTION = bool(os.environ.get("VERCEL") or os.environ.get("RAILWAY_ENVIRONMENT")
-                  or os.environ.get("RAILWAY_PROJECT_ID"))
+                  or os.environ.get("RAILWAY_PROJECT_ID")
+                  or os.environ.get("PRODUCTION"))
 
 
 def initialize() -> None:
