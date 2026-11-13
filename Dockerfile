@@ -2,7 +2,7 @@
 
 # E-Ticket Generator — Flask app served by Gunicorn.
 # Deploy target: Coolify, Dockerfile build pack.
-# In Coolify set "Ports Exposes" to 8000 (or change PORT/EXPOSE below to match).
+# Coolify injects PORT (default "Ports Exposes" 3000); the app binds to it.
 # Requires SECRET_KEY and ADMIN_PASSWORD in Coolify's environment variables;
 # PRODUCTION=1 makes the app fail closed when they are missing.
 
@@ -12,12 +12,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PORT=8000 \
+    PORT=3000 \
     PRODUCTION=1 \
     DATA_FILE=/data/promo_records.json \
     CONTACTS_FILE=/data/telegram_contacts.json
 
 WORKDIR /app
+
+# curl is only for the container healthcheck; Coolify expects curl or wget.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Dependencies are installed in their own layer so code edits rebuild fast.
 COPY requirements.txt ./
@@ -39,13 +44,13 @@ RUN groupadd --system app \
 
 USER app
 
-EXPOSE 8000
+EXPOSE 3000
 
-# GET / is the app's liveness endpoint. Uses only stdlib (no curl in slim).
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8000') + '/', timeout=3)"
+# GET / is the app's liveness endpoint. Shell form so ${PORT} expands.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS "http://127.0.0.1:${PORT:-3000}/" -o /dev/null || exit 1
 
 # One worker by default: JSON storage uses in-process locks, so concurrent
 # workers would race on DATA_FILE. Raise WEB_CONCURRENCY only with Upstash.
 # --timeout 120 leaves room for the app's ~50s Telegram delivery budget.
-CMD ["sh", "-c", "exec gunicorn app:app --bind 0.0.0.0:${PORT:-8000} --workers ${WEB_CONCURRENCY:-1} --threads ${GUNICORN_THREADS:-8} --timeout 120 --graceful-timeout 30 --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "exec gunicorn app:app --bind 0.0.0.0:${PORT:-3000} --workers ${WEB_CONCURRENCY:-1} --threads ${GUNICORN_THREADS:-8} --timeout 120 --graceful-timeout 30 --access-logfile - --error-logfile -"]
