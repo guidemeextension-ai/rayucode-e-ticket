@@ -62,8 +62,13 @@ def initialize() -> None:
 initialize()
 SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_urlsafe(48)
 app.secret_key = SECRET_KEY
+# A Secure cookie is silently dropped by browsers on plain HTTP, which makes
+# the admin login redirect back to itself forever. Production deployments are
+# HTTPS and keep the flag; an HTTP-only host can set SESSION_COOKIE_SECURE=0.
+COOKIE_SECURE = os.environ.get(
+    "SESSION_COOKIE_SECURE", "1" if PRODUCTION else "0").strip() != "0"
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
-                  SESSION_COOKIE_SECURE=PRODUCTION, MAX_CONTENT_LENGTH=1024 * 1024)
+                  SESSION_COOKIE_SECURE=COOKIE_SECURE, MAX_CONTENT_LENGTH=1024 * 1024)
 
 
 @app.errorhandler(StorageError)

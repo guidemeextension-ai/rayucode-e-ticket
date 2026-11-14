@@ -98,6 +98,7 @@ can use generated per-run session/admin credentials; do not rely on them in prod
 | `TELEGRAM_DRY_RUN` | `1` logs messages instead of sending them; creation feedback reports no delivery. Logs can contain ticket/contact details, so use synthetic test data. Unset for real delivery. |
 | `TELEGRAM_BACKUP_USERNAMES` | Comma-separated bot-known private usernames; defaults to `President_Alien,SassdahRAK` when unset. Set explicitly blank to disable backups. |
 | `CONTACTS_FILE` | Local/Railway JSON mode only: defaults to `telegram_contacts.json`; mount persistently alongside `DATA_FILE`. Not used for Upstash contacts. |
+| `SESSION_COOKIE_SECURE` | Defaults to `1` in production and `0` locally. Set `0` only for an HTTP-only host: browsers drop a `Secure` session cookie over plain HTTP, which makes the admin login loop back to itself. |
 | `PORT` | Railway sets this itself. Do not change it. Not needed on Vercel. |
 
 ### Generating values
